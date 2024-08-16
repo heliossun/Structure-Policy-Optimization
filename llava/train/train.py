@@ -248,9 +248,9 @@ def find_all_linear_names(model, prevent_keywords=[]):
         if any(mm_keyword in name for mm_keyword in prevent_keywords):
             continue
         if isinstance(module, cls):
-            names = name.split('.')
-            lora_module_names.add(names[0] if len(names) == 1 else names[-1])
-
+            # names = name.split('.')
+            # lora_module_names.add(names[0] if len(names) == 1 else names[-1])
+            lora_module_names.add(name)
     if 'lm_head' in lora_module_names: # needed for 16-bit
         lora_module_names.remove('lm_head')
     return list(lora_module_names)
@@ -1394,7 +1394,7 @@ def get_model(model_args, training_args, bnb_model_from_pretrained_args):
     assert training_args.attn_implementation
     if training_args.attn_implementation == "sdpa" and torch.__version__ < "2.1.2":
         raise ValueError("The 'sdpa' attention implementation requires torch version 2.1.2 or higher.")
-
+    rank0_print("flash_attention version: ",training_args.attn_implementation)
     customized_kwargs = dict()
     customized_kwargs.update(bnb_model_from_pretrained_args)
     cfg_pretrained = None
@@ -1610,24 +1610,6 @@ def train(attn_implementation=None):
                 output.requires_grad_(True)
 
             model.get_input_embeddings().register_forward_hook(make_inputs_require_grad)
-
-    if training_args.lora_enable:
-
-        lora_config = LoraConfig(
-            r=training_args.lora_r,
-            lora_alpha=training_args.lora_alpha,
-            target_modules=find_all_linear_names(model,["mm_projector", "vision_tower", "vision_resampler"]),
-            lora_dropout=training_args.lora_dropout,
-            bias=training_args.lora_bias,
-            task_type="CAUSAL_LM",
-        )
-        if training_args.bits == 16:
-            if training_args.bf16:
-                model.to(torch.bfloat16)
-            if training_args.fp16:
-                model.to(torch.float16)
-        rank0_print("Adding LoRA adapters...")
-        model = get_peft_model(model, lora_config)
     
     if "mistral" in model_args.model_name_or_path.lower() or "mixtral" in model_args.model_name_or_path.lower() or "zephyr" in model_args.model_name_or_path.lower():
         tokenizer = transformers.AutoTokenizer.from_pretrained(model_args.model_name_or_path, cache_dir=training_args.cache_dir, model_max_length=training_args.model_max_length, padding_side="left")
@@ -1673,7 +1655,7 @@ def train(attn_implementation=None):
         vision_tower = model.get_vision_tower()
         # for k,v in vision_tower.named_parameters():
         #     print(k,v.shape)
-        
+
         vision_tower.to(dtype=torch.bfloat16 if training_args.bf16 else torch.float16, device=training_args.device)
 
         data_args.image_processor = vision_tower.image_processor
@@ -1784,16 +1766,34 @@ def train(attn_implementation=None):
                         rank0_print(f"Checkpoint {checkpoint_name} not found")
 
             if "mm_language_model" in tunable_parts:
-                for name, param in model.named_parameters():
-                    if "vision_tower" not in name and "mm_projector" not in name and "vision_resampler" not in name:
-                        param.requires_grad_(True)
-        
+                if training_args.lora_enable:
+
+                    lora_config = LoraConfig(
+                        r=training_args.lora_r,
+                        lora_alpha=training_args.lora_alpha,
+                        target_modules=find_all_linear_names(model,["mm_projector", "vision_tower", "vision_resampler"]),
+                        lora_dropout=training_args.lora_dropout,
+                        bias=training_args.lora_bias,
+                        task_type="CAUSAL_LM",
+                    )
+                    if training_args.bits == 16:
+                        if training_args.bf16:
+                            model.to(torch.bfloat16)
+                        if training_args.fp16:
+                            model.to(torch.float16)
+                    rank0_print("Adding LoRA adapters...")
+                    model = get_peft_model(model, lora_config)
+                else:
+                    for name, param in model.named_parameters():
+                        if "vision_tower" not in name and "mm_projector" not in name and "vision_resampler" not in name:
+                            param.requires_grad_(True)
+
         total_params = sum(p.ds_numel if hasattr(p, "ds_numel") else p.numel() for p in model.parameters())
         trainable_params = sum(p.ds_numel if hasattr(p, "ds_numel") else p.numel() for p in model.parameters() if p.requires_grad)
-        # rank0_print("trainable lmm layers")
-        # for n,v in model.named_parameters():
-        #     if v.requires_grad:
-        #         rank0_print(n)
+        rank0_print("trainable lmm layers")
+        for n,v in model.named_parameters():
+            if v.requires_grad:
+                rank0_print(n)
         rank0_print(f"Total parameters: ~{total_params/1e6:.2f} MB)")
         rank0_print(f"Trainable parameters: ~{trainable_params/1e6:.2f} MB)")
         if training_args.bits in [4, 8]:

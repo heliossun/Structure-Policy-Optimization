@@ -597,17 +597,7 @@ class ToMESigLipVisionTower(nn.Module):
         if self.is_loaded:
             rank0_print("{} is already loaded, `load_model` called again, skipping.".format(self.vision_tower_name))
             return
-        if self.vision_tower_cfg.pretrain_mm_vit is not None:
-            mm_vit_weights=torch.load(self.vision_tower_cfg.pretrain_mm_vit,map_location="cpu")
-            def get_w(weights, keyword):
-                # model.vision_tower.vision_tower.vision_model.encoder.layers.22.mlp to vision_tower.vision_model.encoder.layers.22.mlp.
-                state_d = {k[32:] : v for k, v in weights.items() if keyword in k}
-                return state_d
-            #incompatible_keys = self.vision_tower.load_state_dict(get_w(mm_vit_weights, "vision_tower"))
-            #rank0_print(f"Loaded vit encoder weights from {self.vision_tower_cfg.pretrain_mm_vit}. Incompatible keys: {incompatible_keys}")
-            self.vision_tower = SigLipVisionModel.from_pretrained(self.vision_tower_name, state_dict=get_w(mm_vit_weights, "vision_tower"),device_map=device_map)  
-        else:
-            self.vision_tower = SigLipVisionModel.from_pretrained(self.vision_tower_name, device_map=device_map)
+        self.vision_tower = SigLipVisionModel.from_pretrained(self.vision_tower_name, device_map=device_map)
        
         del self.vision_tower.vision_model.encoder.layers[-1:]
         self.vision_tower.vision_model.head = nn.Identity()

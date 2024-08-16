@@ -2,11 +2,9 @@ ACCELERATE_CPU_AFFINITY=1 torchrun --nproc_per_node=2 --nnodes=1 \
     llava/train/train_mem.py \
     --lora_enable True --lora_r 128 --lora_alpha 256 --mm_projector_lr 2e-5 \
     --deepspeed scripts/zero3.json \
-    --model_name_or_path ./checkpoints/llm/llava-ov-qwen-llm-7b \
+    --model_name_or_path lmms-lab/llava-onevision-qwen2-7b-ov \
     --version qwen_sq\
     --data_path ./data/share-captioner_coco_lcs_sam_1246k_1107.json \
-    --pretrain_mm_mlp_adapter ./checkpoints/projector/llava_ov_adapter.bin \
-    --pretrain_mm_vit ./checkpoints/projector/llava_ov_vit.bin \
     --image_folder ./data \
     --mm_tunable_parts="mm_vision_tower,mm_mlp_adapter,mm_language_model" \
     --mm_vision_tower_lr=2e-4 \
