@@ -114,8 +114,7 @@ class LlavaMetaModel:
             rank0_print(f"Loaded mm projector weights from {pretrain_mm_mlp_adapter}. Incompatible keys: {incompatible_keys}")
             incompatible_keys = self.vision_resampler.load_state_dict(get_w(mm_projector_weights, "vision_resampler"), strict=False)
             rank0_print(f"Loaded vision resampler weights from {pretrain_mm_mlp_adapter}. Incompatible keys: {incompatible_keys}")
-        
-        
+
 
 def unpad_image(tensor, original_size):
     """
@@ -187,7 +186,7 @@ class LlavaMetaForCausalLM(ABC):
         # image_features = self.get_model().vision_resampler(image_features, images=images)
         image_features = self.get_model().mm_projector(image_features)
         return image_features
-
+    
     def encode_multimodals(self, videos_or_images, video_idx_in_batch, split_sizes=None):
         videos_or_images_features = self.get_model().get_vision_tower()(videos_or_images)
         per_videos_or_images_features = torch.split(videos_or_images_features, split_sizes, dim=0)  # tuple, (dim_1, 576, 4096)
@@ -199,22 +198,6 @@ class LlavaMetaForCausalLM(ABC):
                 feat = self.get_2dPool(feat)
             all_videos_or_images_features.append(feat)
         return all_videos_or_images_features
-
-    def add_token_per_grid(self, image_feature):
-        resize_h = int(math.sqrt(image_feature.shape[1]))
-        num_frames = image_feature.shape[0]
-        image_feature = image_feature.view(num_frames, 1, resize_h, resize_h, -1)
-        image_feature = image_feature.permute(4, 0, 2, 1, 3).contiguous()
-        image_feature = image_feature.flatten(1, 2).flatten(2, 3)
-        image_feature = torch.cat((image_feature, self.model.image_newline[:, None, None].expand(*image_feature.shape[:-1], 1).to(image_feature.device)), dim=-1)
-        image_feature = image_feature.flatten(1, 2).transpose(0, 1)
-        return image_feature
-
-    def add_token_per_frame(self, image_feature):
-        image_feature = image_feature.permute(2, 0, 1).contiguous()
-        image_feature =  torch.cat((image_feature, self.model.image_newline[:, None, None].expand(*image_feature.shape[:-1], 1).to(image_feature.device)), dim=-1)
-        image_feature = image_feature.permute(1, 2, 0).contiguous()
-        return image_feature
 
     def prepare_inputs_labels_for_multimodal(self, input_ids, position_ids, attention_mask, past_key_values, labels, images, modalities=["image"], image_sizes=None):
         vision_tower = self.get_vision_tower()
@@ -270,31 +253,12 @@ class LlavaMetaForCausalLM(ABC):
                     # rank0_print("At least we are reaching here")
                     if image_idx in video_idx_in_batch:  # video operations
                         # rank0_print("Video")
-                        if self.config.mm_newline_position == "grid":
-                            # Grid-wise
-                            image_feature = self.add_token_per_grid(image_feature)
-
-                            new_image_features.append(image_feature)
-                        elif self.config.mm_newline_position == "frame":
-                            # Frame-wise
-                            image_feature = self.add_token_per_frame(image_feature)
-
-                            new_image_features.append(image_feature.flatten(0, 1))
-
-                        elif self.config.mm_newline_position == "one_token":
-                            # one-token
+                        if "unpad" in mm_patch_merge_type:
+                            # image_feature = image_feature.permute(2, 0, 1).contiguous()
+                            # image_feature =  torch.cat((image_feature, self.model.image_newline[:, None, None].expand(*image_feature.shape[:-1], 1).to(image_feature.device)), dim=-1)
+                            # image_feature = image_feature.permute(1, 2, 0).contiguous()
                             image_feature = image_feature.flatten(0, 1)
-                            if 'unpad' in mm_patch_merge_type:
-                                image_feature = torch.cat((
-                                    image_feature,
-                                    self.model.image_newline[None].to(image_feature.device)
-                                ), dim=0)
-                            new_image_features.append(image_feature)
-                        elif self.config.mm_newline_position == "no_token":
-                            new_image_features.append(image_feature.flatten(0, 1))
-                        else:
-                            raise ValueError(f"Unexpected mm_newline_position: {self.config.mm_newline_position}")
-
+                            image_feature = torch.cat((image_feature, self.model.image_newline[None].to(image_feature.device)), dim=0)
 
                     elif image_feature.shape[0] > 1:  # multi patches and multi images operations
                         # rank0_print("Single-images")
