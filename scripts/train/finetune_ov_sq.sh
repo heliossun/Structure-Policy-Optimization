@@ -7,7 +7,7 @@ ACCELERATE_CPU_AFFINITY=1 torchrun --nproc_per_node=2 --nnodes=1 \
     --data_path ./data/share-captioner_coco_lcs_sam_1246k_1107.json \
     --image_folder ./data \
     --mm_tunable_parts="mm_vision_tower,mm_mlp_adapter,mm_language_model" \
-    --mm_vision_tower_lr=2e-4 \
+    --mm_vision_tower_lr=2e-5 \
     --vit_lora_enable \
     --lora_alpha_vit 128 \
     --lora_r_vit 64 \
@@ -24,14 +24,14 @@ ACCELERATE_CPU_AFFINITY=1 torchrun --nproc_per_node=2 --nnodes=1 \
     --run_name test \
     --output_dir "./checkpoints/llava-ov-lora-sq-7b" \
     --num_train_epochs 1 \
-    --per_device_train_batch_size 4 \
+    --per_device_train_batch_size 1 \
     --per_device_eval_batch_size 4 \
     --gradient_accumulation_steps 4 \
     --evaluation_strategy "no" \
     --save_strategy "steps" \
     --save_steps 1000 \
     --save_total_limit 1 \
-    --learning_rate 2e-4 \
+    --learning_rate 2e-5 \
     --weight_decay 0. \
     --warmup_ratio 0.03 \
     --lr_scheduler_type "cosine" \
