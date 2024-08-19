@@ -22,7 +22,7 @@ ACCELERATE_CPU_AFFINITY=1 torchrun --nproc_per_node=2 --nnodes=1 \
     --mm_patch_merge_type spatial_unpad \
     --bf16 True \
     --run_name test \
-    --output_dir "./checkpoints/llava-ov-lora-sq-7b" \
+    --output_dir "./checkpoints/llava-ov-lora-sq-7b-lr2e5" \
     --num_train_epochs 1 \
     --per_device_train_batch_size 1 \
     --per_device_eval_batch_size 4 \
@@ -49,4 +49,5 @@ ACCELERATE_CPU_AFFINITY=1 torchrun --nproc_per_node=2 --nnodes=1 \
     --ToME False \
     --merging_r 16 \
     --trend -1.0 \
+    --sq_r 0.5
 # You can delete the sdpa attn_implementation if you want to use flash attn
