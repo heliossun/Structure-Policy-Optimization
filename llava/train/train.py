@@ -1272,27 +1272,28 @@ class LazySupervisedDataset(Dataset):
                 print("File {} not exist!".format(video_file))
 
             try:
-                if "shareVideoGPTV" in video_file:
-                    frame_files = [os.path.join(video_file, f) for f in os.listdir(video_file) if os.path.isfile(os.path.join(video_file, f))]
-                    frame_files.sort()  # Ensure the frames are sorted if they are named sequentially
+                #if "shareVideoGPTV" in video_file:
+                # TODO: temporarily support frames data download from https://github.com/RifleZhang/LLaVA-Hound-DPO.git
+                frame_files = [os.path.join(video_file, f) for f in os.listdir(video_file) if os.path.isfile(os.path.join(video_file, f))]
+                frame_files.sort()  # Ensure the frames are sorted if they are named sequentially
 
-                    # TODO: Hard CODE: Determine the indices for uniformly sampling 10 frames
-                    num_frames_to_sample = 10
-                    total_frames = len(frame_files)
-                    sampled_indices = np.linspace(0, total_frames - 1, num_frames_to_sample, dtype=int)
+                # TODO: Hard CODE: Determine the indices for uniformly sampling 10 frames
+                num_frames_to_sample = 10
+                total_frames = len(frame_files)
+                sampled_indices = np.linspace(0, total_frames - 1, num_frames_to_sample, dtype=int)
 
-                    # Read and store the sampled frames
-                    video = []
-                    for idx in sampled_indices:
-                        frame_path = frame_files[idx]
-                        try:
-                            with Image.open(frame_path) as img:
-                                frame = img.convert("RGB")
-                                video.append(frame)
-                        except IOError:
-                            print(f"Failed to read frame at path: {frame_path}")
-                else:
-                    video = process_video_with_decord(video_file, self.data_args)
+                # Read and store the sampled frames
+                video = []
+                for idx in sampled_indices:
+                    frame_path = frame_files[idx]
+                    try:
+                        with Image.open(frame_path) as img:
+                            frame = img.convert("RGB")
+                            video.append(frame)
+                    except IOError:
+                        print(f"Failed to read frame at path: {frame_path}")
+                # else:
+                #     video = process_video_with_decord(video_file, self.data_args)
 
                 processor = self.data_args.image_processor
                 image = processor.preprocess(video, return_tensors="pt")["pixel_values"]
