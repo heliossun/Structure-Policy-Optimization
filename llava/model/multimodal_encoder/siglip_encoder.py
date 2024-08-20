@@ -556,7 +556,8 @@ class SigLipVisionTower(nn.Module):
             self.load_model()
         elif hasattr(vision_tower_cfg, "mm_tunable_parts") and "mm_vision_tower" in vision_tower_cfg.mm_tunable_parts:
             rank0_print(f"The checkpoint seems to contain `vision_tower` weights: `mm_tunable_parts` contains `mm_vision_tower`.")
-            self.load_model()
+            if vision_tower_cfg.vit_lora_enable is False:
+                self.load_model()
         else:
             self.cfg_only = self.config
 

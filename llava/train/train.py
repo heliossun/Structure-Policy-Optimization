@@ -1273,7 +1273,6 @@ class LazySupervisedDataset(Dataset):
 
             try:
                 #if "shareVideoGPTV" in video_file:
-                # TODO: temporarily support frames data download from https://github.com/RifleZhang/LLaVA-Hound-DPO.git
                 frame_files = [os.path.join(video_file, f) for f in os.listdir(video_file) if os.path.isfile(os.path.join(video_file, f))]
                 frame_files.sort()  # Ensure the frames are sorted if they are named sequentially
 

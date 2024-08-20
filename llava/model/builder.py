@@ -24,7 +24,8 @@ from llava.constants import DEFAULT_IMAGE_PATCH_TOKEN, DEFAULT_IM_START_TOKEN, D
 from llava.utils import rank0_print
 
 
-def load_pretrained_model(model_path, model_base, model_name, load_8bit=False, load_4bit=False, device_map="auto", attn_implementation="flash_attention_2", customized_config=None, overwrite_config=None, **kwargs):
+def load_pretrained_model(model_path, model_base, model_name, load_8bit=False, load_4bit=False, device_map="auto", attn_implementation="flash_attention_2", customized_config=None, overwrite_config=None, lora_pt=None, **kwargs):
+    
     kwargs["device_map"] = device_map
 
     if load_8bit:
@@ -53,7 +54,7 @@ def load_pretrained_model(model_path, model_base, model_name, load_8bit=False, l
             )
         if "lora" in model_name.lower() and model_base is not None:
             lora_cfg_pretrained = AutoConfig.from_pretrained(model_path)
-            tokenizer = AutoTokenizer.from_pretrained(model_base, use_fast=False)
+            #tokenizer = AutoTokenizer.from_pretrained(model_base, use_fast=False)
             rank0_print("Loading LLaVA from base model...")
             if "mixtral" in model_name.lower():
                 from llava.model.language_model.llava_mixtral import LlavaMixtralConfig
@@ -75,14 +76,14 @@ def load_pretrained_model(model_path, model_base, model_name, load_8bit=False, l
                 model = LlavaGemmaForCausalLM.from_pretrained(model_base, low_cpu_mem_usage=True, config=lora_cfg_pretrained, attn_implementation=attn_implementation, **kwargs)
             elif "qwen" in model_name.lower():
                 from llava.model.language_model.llava_qwen import LlavaQwenConfig
-                tokenizer = AutoTokenizer.from_pretrained(model_base, use_fast=False)
-                lora_cfg_pretrained = LlavaQwenConfig.from_pretrained(model_path)
+                tokenizer = AutoTokenizer.from_pretrained(model_base)
+                lora_cfg_pretrained = LlavaQwenConfig.from_pretrained(model_base)
                 if overwrite_config is not None:
                     rank0_print(f"Overwriting config with {overwrite_config}")
                     for k, v in overwrite_config.items():
                         setattr(lora_cfg_pretrained, k, v)
                     
-                model = LlavaQwenForCausalLM.from_pretrained(model_path, low_cpu_mem_usage=True, config=lora_cfg_pretrained, attn_implementation=attn_implementation, **kwargs)
+                model = LlavaQwenForCausalLM.from_pretrained(model_base, low_cpu_mem_usage=True, config=lora_cfg_pretrained, attn_implementation=attn_implementation, **kwargs)
 
             else:
                 from llava.model.language_model.llava_llama import LlavaConfig
@@ -286,11 +287,17 @@ def load_pretrained_model(model_path, model_base, model_name, load_8bit=False, l
             tokenizer.add_tokens([DEFAULT_IMAGE_PATCH_TOKEN], special_tokens=True)
         if mm_use_im_start_end:
             tokenizer.add_tokens([DEFAULT_IM_START_TOKEN, DEFAULT_IM_END_TOKEN], special_tokens=True)
+        print(tokenizer)
         model.resize_token_embeddings(len(tokenizer))
 
         vision_tower = model.get_vision_tower()
         if not vision_tower.is_loaded:
             vision_tower.load_model(device_map=device_map)
+        if lora_pt:
+            print(f"Loading ViT-LoRA weights from {lora_pt}")
+            vision_tower = PeftModel.from_pretrained(vision_tower, lora_pt)
+            print(f"Merging weights")
+            vision_tower = vision_tower.merge_and_unload()
         if device_map != "auto":
             vision_tower.to(device="cuda", dtype=torch.float16)
         image_processor = vision_tower.image_processor
