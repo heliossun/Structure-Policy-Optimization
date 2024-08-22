@@ -652,7 +652,7 @@ def preprocess_qwen_sq(
             role = roles[sentence["from"]]
             assert role == conv.roles[j % 2], f"{i}"
             if has_image and sentence["from"] == "human":
-                if j>0 and random()<sq_r:
+                if j>0 and random.random()<sq_r:
                     conv.append_message(conv.roles[2], sentence["value"])   # user --> vsuer: train to ask question
                 else:
                     conv.append_message(role, sentence["value"])
