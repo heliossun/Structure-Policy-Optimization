@@ -22,7 +22,8 @@ for subf in subfolder:
                 json_data["image"] = f"{da['id']}.png"
             else:
                 json_data["image"] = f"{da['id']}"
-            da["image"].save(os.path.join(image_folder, json_data["image"]))
+            if not os.path.exists(os.path.join(image_folder, json_data["image"])):
+                da["image"].convert('RGB').save(os.path.join(image_folder, json_data["image"]))
         json_data["conversations"] = da["conversations"]
         converted_data.append(json_data)
 
