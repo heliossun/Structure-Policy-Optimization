@@ -21,7 +21,12 @@ for subf in subfolder:
             if '.jpg' not in da['id'] and '.png' not in da['id']:
                 json_data["image"] = f"{da['id']}.png"
             else:
-                json_data["image"] = f"{da['id']}"
+                if da['id'][-3:] != 'jpg' and da['id'][-3:] != 'png':
+                    da['id'].replace('.jpg','')
+                    da['id'].replace('.png','')
+                    json_data["image"] = f"{da['id']}.png"
+                else:
+                    json_data["image"] = f"{da['id']}"
             if not os.path.exists(os.path.join(image_folder, json_data["image"])):
                 da["image"].convert('RGB').save(os.path.join(image_folder, json_data["image"]))
         json_data["conversations"] = da["conversations"]
