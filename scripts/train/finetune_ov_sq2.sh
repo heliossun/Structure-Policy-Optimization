@@ -1,11 +1,12 @@
-ACCELERATE_CPU_AFFINITY=1 torchrun --nproc_per_node=2 --nnodes=1 \
+ACCELERATE_CPU_AFFINITY=1 torchrun --nproc_per_node=8 --nnodes=1 \
     llava/train/train_mem.py \
     --lora_enable True --lora_r 128 --lora_alpha 256 --mm_projector_lr 2e-5 \
     --deepspeed scripts/zero3.json \
-    --model_name_or_path lmms-lab/llava-onevision-qwen2-7b-ov \
+    --model_name_or_path lmms-lab/llava-onevision-qwen2-7b-si \
     --version qwen_sq\
-    --data_path ./data/share-captioner_coco_lcs_sam_1246k_1107.json \
-    --image_folder ./data \
+    --data_path ./data/onvision_video.jsonl \
+    --image_folder ./data/image \
+    --video_folder ./data/video \
     --mm_tunable_parts="mm_vision_tower,mm_mlp_adapter,mm_language_model" \
     --mm_vision_tower_lr=2e-4 \
     --vit_lora_enable \
@@ -22,9 +23,9 @@ ACCELERATE_CPU_AFFINITY=1 torchrun --nproc_per_node=2 --nnodes=1 \
     --mm_patch_merge_type spatial_unpad \
     --bf16 True \
     --run_name test \
-    --output_dir "./checkpoints/llava-ov-lora-sq-7b-lr2e4" \
+    --output_dir "./checkpoints/sqllava-lora-qwen-7b-ovVideo-from-si" \
     --num_train_epochs 1 \
-    --per_device_train_batch_size 1 \
+    --per_device_train_batch_size 2 \
     --per_device_eval_batch_size 4 \
     --gradient_accumulation_steps 4 \
     --evaluation_strategy "no" \
@@ -49,5 +50,5 @@ ACCELERATE_CPU_AFFINITY=1 torchrun --nproc_per_node=2 --nnodes=1 \
     --ToME False \
     --merging_r 16 \
     --trend -1.0 \
-    --sq_r 0.5
+    --sq_r 0.3
 # You can delete the sdpa attn_implementation if you want to use flash attn
