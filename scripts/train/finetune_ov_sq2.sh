@@ -2,7 +2,7 @@ ACCELERATE_CPU_AFFINITY=1 torchrun --nproc_per_node=8 --nnodes=1 \
     llava/train/train_mem.py \
     --lora_enable True --lora_r 128 --lora_alpha 256 --mm_projector_lr 2e-5 \
     --deepspeed scripts/zero3.json \
-    --model_name_or_path lmms-lab/llava-onevision-qwen2-7b-si \
+    --model_name_or_path lmms-lab/llava-onevision-qwen2-7b-ov \
     --version qwen_sq\
     --data_path ./data/onvision_video.jsonl \
     --image_folder ./data/image \
@@ -23,7 +23,7 @@ ACCELERATE_CPU_AFFINITY=1 torchrun --nproc_per_node=8 --nnodes=1 \
     --mm_patch_merge_type spatial_unpad \
     --bf16 True \
     --run_name test \
-    --output_dir "./checkpoints/sqllava-lora-qwen-7b-ovVideo-from-si" \
+    --output_dir "./checkpoints/sqllava-lora-qwen-7b-ovVideo-from-ov" \
     --num_train_epochs 1 \
     --per_device_train_batch_size 2 \
     --per_device_eval_batch_size 4 \
