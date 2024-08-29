@@ -177,7 +177,8 @@ class Conversation:
 
     def append_message(self, role, message):
         self.messages.append([role, message])
-
+    def clear_message(self):
+        self.messages.clear()
     def process_image(self, image, image_process_mode, return_pil=False, image_format="PNG"):
         if image_process_mode == "Pad":
 
