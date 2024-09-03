@@ -564,10 +564,10 @@ def preprocess_qwen(sources, tokenizer: transformers.PreTrainedTokenizer, has_im
 
     # Add image tokens to tokenizer as a special tokens
     # Use a deepcopy of tokenizer so that we don't modify on the tokenizer
-    tokenizer = copy.deepcopy(tokenizer)
-    # When there is actually an image, we add the image tokens as a special token
-    if has_image:
-        tokenizer.add_tokens(["<image>"], special_tokens=True)
+    # tokenizer = copy.deepcopy(tokenizer)
+    # # When there is actually an image, we add the image tokens as a special token
+    # if has_image:
+    #     tokenizer.add_tokens(["<image>"], special_tokens=True)
 
     image_token_index = tokenizer.convert_tokens_to_ids("<image>")
     im_start, im_end = tokenizer.additional_special_tokens_ids
@@ -642,6 +642,9 @@ def preprocess_qwen_sq(
     conv = conversation_lib.default_conversation.copy()
     roles = {"human": conv.roles[0], "gpt": conv.roles[1]}
     conversations = []
+    im_start, im_end = tokenizer.additional_special_tokens_ids
+    # unmask_tokens = ["<|im_start|>", "<|im_start|>", "\n"]
+    unmask_tokens_idx = [198, im_start, im_end]
     for i, source in enumerate(sources):
         if roles[source[0]["from"]] != conv.roles[0]:
             # Skip the first one if it is not from human
@@ -679,7 +682,7 @@ def preprocess_qwen_sq(
     myConovsep = conv.sep+"\n"
     sep_vur = conv.roles[2]
 
-    for conversation, target in zip(conversations, targets):
+    for input_id, conversation, target in zip(input_ids, conversations, targets):
         #print("+++++input+++++:",target)
         total_len = int(target.ne(tokenizer.pad_token_id).sum())
         rounds = conversation.split(myConovsep)
@@ -739,6 +742,10 @@ def preprocess_qwen_sq(
                     f"WARNING: tokenization mismatch: {cur_len} vs. {total_len}."
                     f" (ignored)"
                 )
+        assert len(input_id) == len(target), f"{len(input_id)} != {len(target)}"
+        for idx, encode_id in enumerate(input_id):
+            if encode_id in unmask_tokens_idx:
+                target[idx] = encode_id
     return dict(
         input_ids=input_ids,
         labels=targets,
