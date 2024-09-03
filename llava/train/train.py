@@ -642,9 +642,10 @@ def preprocess_qwen_sq(
     conv = conversation_lib.default_conversation.copy()
     roles = {"human": conv.roles[0], "gpt": conv.roles[1]}
     conversations = []
-    im_start, im_end = tokenizer.additional_special_tokens_ids
-    # unmask_tokens = ["<|im_start|>", "<|im_start|>", "\n"]
-    unmask_tokens_idx = [198, im_start, im_end]
+    # image_token_index = tokenizer.convert_tokens_to_ids("<image>")
+    # im_start, im_end = tokenizer.additional_special_tokens_ids
+    # # unmask_tokens = ["<|im_start|>", "<|im_start|>", "\n"]
+    # unmask_tokens_idx = [198, im_start, im_end]
     for i, source in enumerate(sources):
         if roles[source[0]["from"]] != conv.roles[0]:
             # Skip the first one if it is not from human
@@ -742,10 +743,12 @@ def preprocess_qwen_sq(
                     f"WARNING: tokenization mismatch: {cur_len} vs. {total_len}."
                     f" (ignored)"
                 )
-        assert len(input_id) == len(target), f"{len(input_id)} != {len(target)}"
-        for idx, encode_id in enumerate(input_id):
-            if encode_id in unmask_tokens_idx:
-                target[idx] = encode_id
+        # assert len(input_id) == len(target), f"{len(input_id)} != {len(target)}"
+        # for idx, encode_id in enumerate(input_id):
+        #     if encode_id in unmask_tokens_idx:
+        #         target[idx] = encode_id
+        #     if encode_id == image_token_index:
+        #         input_id[idx] = IMAGE_TOKEN_INDEX
     return dict(
         input_ids=input_ids,
         labels=targets,
