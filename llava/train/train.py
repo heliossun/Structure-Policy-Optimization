@@ -573,6 +573,7 @@ def preprocess_qwen(sources, tokenizer: transformers.PreTrainedTokenizer, has_im
     im_start, im_end = tokenizer.additional_special_tokens_ids
     # unmask_tokens = ["<|im_start|>", "<|im_start|>", "\n"]
     unmask_tokens_idx =  [198, im_start, im_end]
+    #print("unmask ids: ",unmask_tokens_idx)
     nl_tokens = tokenizer("\n").input_ids
 
     # Reset Qwen chat templates so that it won't include system message every time we apply
@@ -623,7 +624,9 @@ def preprocess_qwen(sources, tokenizer: transformers.PreTrainedTokenizer, has_im
                 target[idx] = encode_id
             if encode_id == image_token_index:
                 input_id[idx] = IMAGE_TOKEN_INDEX
+        #print("input: ",input_id)
         input_ids.append(input_id)
+        #print("target: ",target)
         targets.append(target)
     input_ids = torch.tensor(input_ids, dtype=torch.long)
     targets = torch.tensor(targets, dtype=torch.long)
@@ -642,10 +645,9 @@ def preprocess_qwen_sq(
     conv = conversation_lib.default_conversation.copy()
     roles = {"human": conv.roles[0], "gpt": conv.roles[1]}
     conversations = []
-    # image_token_index = tokenizer.convert_tokens_to_ids("<image>")
-    # im_start, im_end = tokenizer.additional_special_tokens_ids
-    # # unmask_tokens = ["<|im_start|>", "<|im_start|>", "\n"]
-    # unmask_tokens_idx = [198, im_start, im_end]
+    im_start, im_end = tokenizer.additional_special_tokens_ids
+    # unmask_tokens = ["<|im_start|>", "<|im_start|>", "\n"]
+    unmask_tokens_idx = [198, im_start, im_end]
     for i, source in enumerate(sources):
         if roles[source[0]["from"]] != conv.roles[0]:
             # Skip the first one if it is not from human
@@ -682,9 +684,8 @@ def preprocess_qwen_sq(
     sep = conv.sep + "\n" + conv.roles[1]
     myConovsep = conv.sep+"\n"
     sep_vur = conv.roles[2]
-
     for input_id, conversation, target in zip(input_ids, conversations, targets):
-        #print("+++++input+++++:",target)
+
         total_len = int(target.ne(tokenizer.pad_token_id).sum())
         rounds = conversation.split(myConovsep)
         re_rounds = [myConovsep.join(rounds[:3])]  # system + user + gpt
@@ -718,7 +719,6 @@ def preprocess_qwen_sq(
                 target[cur_len: cur_len + instruction_len] = IGNORE_INDEX
             else:
                 #VUSR: unmask question tokens after vuser
-
                 if has_image:
                     round_len = len(tokenizer_image_token(rou, tokenizer))+2
                     sep_len = len(tokenizer_image_token(sep_vur, tokenizer)) +1
@@ -731,7 +731,6 @@ def preprocess_qwen_sq(
                 if i != 0 and getattr(tokenizer, 'legacy', False) and IS_TOKENIZER_GREATER_THAN_0_14:
                     round_len += 1
                 target[cur_len: cur_len + sep_len] = IGNORE_INDEX
-                #print("<<<target>>>",target)
             cur_len += round_len
 
         target[cur_len:] = IGNORE_INDEX
@@ -743,12 +742,12 @@ def preprocess_qwen_sq(
                     f"WARNING: tokenization mismatch: {cur_len} vs. {total_len}."
                     f" (ignored)"
                 )
-        # assert len(input_id) == len(target), f"{len(input_id)} != {len(target)}"
-        # for idx, encode_id in enumerate(input_id):
-        #     if encode_id in unmask_tokens_idx:
-        #         target[idx] = encode_id
-        #     if encode_id == image_token_index:
-        #         input_id[idx] = IMAGE_TOKEN_INDEX
+        assert len(input_id) == len(target), f"{len(input_id)} != {len(target)}"
+        for idx, encode_id in enumerate(input_id):
+            if encode_id in unmask_tokens_idx:
+                target[idx] = encode_id
+    #print("input: ", input_ids[0])
+    #print("target: ", targets[0])
     return dict(
         input_ids=input_ids,
         labels=targets,
@@ -1620,7 +1619,7 @@ def train(attn_implementation=None):
                 output.requires_grad_(True)
 
             model.get_input_embeddings().register_forward_hook(make_inputs_require_grad)
-    
+
     if "mistral" in model_args.model_name_or_path.lower() or "mixtral" in model_args.model_name_or_path.lower() or "zephyr" in model_args.model_name_or_path.lower():
         tokenizer = transformers.AutoTokenizer.from_pretrained(model_args.model_name_or_path, cache_dir=training_args.cache_dir, model_max_length=training_args.model_max_length, padding_side="left")
     elif "qwen" in model_args.model_name_or_path.lower():
