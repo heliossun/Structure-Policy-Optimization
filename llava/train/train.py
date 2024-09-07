@@ -668,6 +668,8 @@ def preprocess_qwen_sq(
     if has_image:
         input_ids = torch.stack([tokenizer_image_token(
             prompt, tokenizer, return_tensors='pt') for prompt in conversations], dim=0)
+        num_images = (input_ids == IMAGE_TOKEN_INDEX).sum()
+        assert num_images>0, "Something wring with the input_ids "
     else:
         input_ids = tokenizer(
             conversations,
@@ -1138,6 +1140,7 @@ class LazySupervisedDataset(Dataset):
                     elif sampling_strategy == "end" and sampling_number is not None:
                         cur_data_dict = cur_data_dict[-sampling_number:]
                     elif sampling_strategy == "random" and sampling_number is not None:
+                        
                         random.shuffle(cur_data_dict)
                         cur_data_dict = cur_data_dict[:sampling_number]
 
@@ -1182,7 +1185,7 @@ class LazySupervisedDataset(Dataset):
     def process_image(self, image_file, overwrite_image_aspect_ratio=None):
         image_folder = self.data_args.image_folder
         processor = self.data_args.image_processor
-        # print(f"\n\nInspecting the image path, folder = {image_folder}, image={image_file}\n\n")
+        #print(f"\n\nInspecting the image path, folder = {image_folder}, image={image_file}\n\n")
         try:
             image = Image.open(os.path.join(image_folder, image_file)).convert("RGB")
         except Exception as exn:
@@ -1619,7 +1622,7 @@ def train(attn_implementation=None):
                 output.requires_grad_(True)
 
             model.get_input_embeddings().register_forward_hook(make_inputs_require_grad)
-
+    
     if "mistral" in model_args.model_name_or_path.lower() or "mixtral" in model_args.model_name_or_path.lower() or "zephyr" in model_args.model_name_or_path.lower():
         tokenizer = transformers.AutoTokenizer.from_pretrained(model_args.model_name_or_path, cache_dir=training_args.cache_dir, model_max_length=training_args.model_max_length, padding_side="left")
     elif "qwen" in model_args.model_name_or_path.lower():
