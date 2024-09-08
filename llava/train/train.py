@@ -636,6 +636,93 @@ def preprocess_qwen(sources, tokenizer: transformers.PreTrainedTokenizer, has_im
         labels=targets,  # tensor(bs x seq_len)
     )
 
+def preprocess_qwen_sq2(sources, tokenizer: transformers.PreTrainedTokenizer, has_image: bool = False, max_len=2048, system_message: str = "You are a helpful assistant.",sq_r=0.3) -> Dict:
+    # roles = {"human": "<|im_start|>user", "gpt": "<|im_start|>assistant"}
+    roles = {"human": "user", "gpt": "assistant","vh":"vuser"}
+    system_message="You are a helpful assistant. The AI assistant is also a curious virtual user. The virtual user asks complex questions that are relevant to the content in the image. Again, do not ask about uncertain details."
+    # Add image tokens to tokenizer as a special tokens
+    # Use a deepcopy of tokenizer so that we don't modify on the tokenizer
+    # tokenizer = copy.deepcopy(tokenizer)
+    # # When there is actually an image, we add the image tokens as a special token
+    # if has_image:
+    #     tokenizer.add_tokens(["<image>"], special_tokens=True)
+
+    image_token_index = tokenizer.convert_tokens_to_ids("<image>")
+    im_start, im_end = tokenizer.additional_special_tokens_ids
+    # unmask_tokens = ["<|im_start|>", "<|im_start|>", "\n"]
+    unmask_tokens_idx =  [198, im_start, im_end]
+    #print("unmask ids: ",unmask_tokens_idx)
+    nl_tokens = tokenizer("\n").input_ids
+
+    # Reset Qwen chat templates so that it won't include system message every time we apply
+    chat_template = "{% for message in messages %}{{'<|im_start|>' + message['role'] + '\n' + message['content'] + '<|im_end|>' + '\n'}}{% endfor %}{% if add_generation_prompt %}{{ '<|im_start|>assistant\n' }}{% endif %}"
+    tokenizer.chat_template = chat_template
+
+    # _system = tokenizer("system").input_ids + nl_tokens
+    # _user = tokenizer("user").input_ids + nl_tokens
+    # _assistant = tokenizer("assistant").input_ids + nl_tokens
+
+    # Apply prompt templates
+    input_ids, targets = [], []
+    for i, source in enumerate(sources):
+        if roles[source[0]["from"]] != roles["human"]:
+            source = source[1:]
+
+        input_id, target = [], []
+
+        # New version, use apply chat template
+        # Build system message for each sentence
+        input_id += tokenizer.apply_chat_template([{"role" : "system", "content" : system_message}])
+        target += [IGNORE_INDEX] * len(input_id)
+        
+        for i,conv in enumerate(source):
+            # Make sure llava data can load
+            try:
+                role = conv["role"]
+                content = conv["content"]
+            except:
+                role = conv["from"]
+                content = conv["value"]
+
+            role =  roles.get(role, role)
+            if role == "user":
+                if i>0 and random.random()<sq_r:
+                    role=roles.get('vh','vuser')
+            conv = [{"role" : role, "content" : content}]
+            encode_id = tokenizer.apply_chat_template(conv)
+            input_id += encode_id
+
+            if role in ["user", "system"]:
+                target += [IGNORE_INDEX] * len(encode_id)
+            else:
+                
+                # if role == 'vuser':
+                #     encode_id[:4]=[IGNORE_INDEX]*4
+                # else:
+                #     encode_id[:3]=[IGNORE_INDEX]*3
+                target += encode_id
+                
+
+
+
+        assert len(input_id) == len(target), f"{len(input_id)} != {len(target)}"
+        for idx, encode_id in enumerate(input_id):
+            if encode_id in unmask_tokens_idx:
+                target[idx] = encode_id
+            if encode_id == image_token_index:
+                input_id[idx] = IMAGE_TOKEN_INDEX
+        
+        input_ids.append(input_id)
+        
+        targets.append(target)
+    input_ids = torch.tensor(input_ids, dtype=torch.long)
+    targets = torch.tensor(targets, dtype=torch.long)
+
+    return dict(
+        input_ids=input_ids,  # tensor(bs x seq_len)
+        labels=targets,  # tensor(bs x seq_len)
+    )
+
 def preprocess_qwen_sq(
     sources,
     tokenizer: transformers.PreTrainedTokenizer,
@@ -668,7 +755,7 @@ def preprocess_qwen_sq(
     if has_image:
         input_ids = torch.stack([tokenizer_image_token(
             prompt, tokenizer, return_tensors='pt') for prompt in conversations], dim=0)
-                
+        
     else:
         input_ids = tokenizer(
             conversations,
@@ -1041,7 +1128,7 @@ def preprocess(sources: Sequence[str], tokenizer: transformers.PreTrainedTokeniz
     if conversation_lib.default_conversation.version == "qwen":
         return preprocess_qwen(sources, tokenizer, has_image=has_image)
     if conversation_lib.default_conversation.version == "qwen_sq":
-        return preprocess_qwen_sq(sources, tokenizer, has_image=has_image, sq_r=sq_r)
+        return preprocess_qwen_sq2(sources, tokenizer, has_image=has_image, sq_r=sq_r)
     if conversation_lib.default_conversation.version == "gemma":
         return preprocess_gemma(sources, tokenizer, has_image=has_image)
     if conversation_lib.default_conversation.version == "llama_v3":
