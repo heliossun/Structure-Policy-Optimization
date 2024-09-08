@@ -666,11 +666,12 @@ def preprocess_qwen_sq(
                 conv.append_message(role, sentence["value"])
         conversations.append(conv.get_prompt())
     if has_image:
-        rank0_print(conversations)
         input_ids = torch.stack([tokenizer_image_token(
             prompt, tokenizer, return_tensors='pt') for prompt in conversations], dim=0)
-        num_images = (input_ids == IMAGE_TOKEN_INDEX).sum()
-        assert num_images>0, "Something wring with the input_ids "
+        for i,input in enumerate(input_ids):
+            num_images = (input == IMAGE_TOKEN_INDEX).sum()
+            if num_images<1:
+                print("weird data: ",sources[i])
     else:
         input_ids = tokenizer(
             conversations,
