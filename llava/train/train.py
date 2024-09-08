@@ -666,6 +666,7 @@ def preprocess_qwen_sq(
                 conv.append_message(role, sentence["value"])
         conversations.append(conv.get_prompt())
     if has_image:
+        rank0_print(conversations)
         input_ids = torch.stack([tokenizer_image_token(
             prompt, tokenizer, return_tensors='pt') for prompt in conversations], dim=0)
         num_images = (input_ids == IMAGE_TOKEN_INDEX).sum()
