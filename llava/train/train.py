@@ -671,7 +671,7 @@ def preprocess_qwen_sq(
         for i,input in enumerate(input_ids):
             num_images = (input == IMAGE_TOKEN_INDEX).sum()
             if num_images<1:
-                print("weird data: ",sources[i])
+                rank0_print("weird data: ",sources[i])
     else:
         input_ids = tokenizer(
             conversations,
