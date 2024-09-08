@@ -668,10 +668,7 @@ def preprocess_qwen_sq(
     if has_image:
         input_ids = torch.stack([tokenizer_image_token(
             prompt, tokenizer, return_tensors='pt') for prompt in conversations], dim=0)
-        for i,input in enumerate(input_ids):
-            num_images = (input == IMAGE_TOKEN_INDEX).sum()
-            if num_images<1:
-                rank0_print("weird data: ",sources[i])
+                
     else:
         input_ids = tokenizer(
             conversations,
