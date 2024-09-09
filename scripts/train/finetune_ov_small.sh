@@ -4,7 +4,7 @@ ACCELERATE_CPU_AFFINITY=1 torchrun --nproc_per_node=8 --nnodes=1 \
     --deepspeed scripts/zero3.json \
     --model_name_or_path lmms-lab/llava-onevision-qwen2-0.5b-ov \
     --version qwen_1_5\
-    --data_path ./data/m4-instruct-anno+video.json \
+    --data_path ./data/m4-instruct-anno+videov2.json \
     --image_folder ./data/image \
     --video_folder ./data/video \
     --mm_tunable_parts="mm_vision_tower,mm_mlp_adapter,mm_language_model" \
