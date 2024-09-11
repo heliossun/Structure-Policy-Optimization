@@ -696,10 +696,10 @@ def preprocess_qwen_sq2(sources, tokenizer: transformers.PreTrainedTokenizer, ha
                 target += [IGNORE_INDEX] * len(encode_id)
             else:
                 
-                # if role == 'vuser':
-                #     encode_id[:4]=[IGNORE_INDEX]*4
-                # else:
-                #     encode_id[:3]=[IGNORE_INDEX]*3
+                if role == 'vuser':
+                    encode_id[1:4]=[IGNORE_INDEX]*3
+                else:
+                    encode_id[1:3]=[IGNORE_INDEX]*2
                 target += encode_id
                 
 
