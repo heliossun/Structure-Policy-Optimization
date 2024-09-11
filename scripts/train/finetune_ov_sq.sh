@@ -23,14 +23,14 @@ ACCELERATE_CPU_AFFINITY=1 torchrun --nproc_per_node=8 --nnodes=1 \
     --mm_patch_merge_type spatial_unpad \
     --bf16 True \
     --run_name test \
-    --output_dir "./checkpoints/sqllava-lora-qwen-7b-ovVideo" \
+    --output_dir "./checkpoints/sqllava-lora-qwen-7b-ovVideo-v2" \
     --num_train_epochs 1 \
     --per_device_train_batch_size 2 \
     --per_device_eval_batch_size 4 \
     --gradient_accumulation_steps 8 \
     --evaluation_strategy "no" \
     --save_strategy "steps" \
-    --save_steps 1000 \
+    --save_steps 100000 \
     --save_total_limit 1 \
     --learning_rate 2e-5 \
     --weight_decay 0. \
