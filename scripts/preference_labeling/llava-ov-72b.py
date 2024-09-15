@@ -67,7 +67,7 @@ if __name__ == '__main__':
     device_map = "auto" # this will dispatch model
     device = "cuda"
 
-    pretrained = "lmms-lab/llava-onevision-qwen2-72b-ov-sft"
+    pretrained = "lmms-lab/llava-onevision-qwen2-72b-ov-chat"
     model_name = "llava_qwen"
     tokenizer, model, image_processor, max_length = load_pretrained_model(pretrained, None, model_name,
                                                                           device_map=device_map,
