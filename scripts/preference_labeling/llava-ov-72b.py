@@ -115,7 +115,7 @@ if __name__ == '__main__':
             )
             text_outputs = tokenizer.batch_decode(cont, skip_special_tokens=True)[0]
             score.append(parse_score(text_outputs))
-        if min(score[0])>=6.0:
+        if min(score[0])>=5.0:
             if score[0][0]>score[0][1]:
                 q_w=qs[0]
                 q_l=qs[1]
