@@ -56,7 +56,7 @@ def parse_score(review):
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description='ChatGPT-based QA evaluation.')
-    parser.add_argument('-q', '--question')
+    parser.add_argument('-q', '--qafile')
     parser.add_argument('-c', '--context')
     parser.add_argument('-a', '--answer-list', nargs='+', default=[])
     parser.add_argument('-r', '--rule')
@@ -74,8 +74,7 @@ if __name__ == '__main__':
                                                                           attn_implementation="sdpa")
     model.eval()
 
-    qa_file = "/guohao/data/videoinstruct/m4_instruct_self_QA.json"
-    data_dict = json.load(open(qa_file, 'r'))
+    data_dict = json.load(open(args.qafile, 'r'))
     review_file = open(f'{args.output}', 'a')
     # Labeling preference / reject answers and save the results in $review_file.
     conv_template = "qwen_1_5"
