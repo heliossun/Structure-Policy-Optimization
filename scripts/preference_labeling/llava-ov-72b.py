@@ -115,25 +115,37 @@ if __name__ == '__main__':
             )
             text_outputs = tokenizer.batch_decode(cont, skip_special_tokens=True)[0]
             score.append(parse_score(text_outputs))
-        if min(score[0])>=5.0:
+        if min(score[0])>=6.0:
             if score[0][0]>score[0][1]:
                 q_w=qs[0]
                 q_l=qs[1]
+                if score[1][0]>score[1][1]:
+                    a1_w=answers[0]
+                    a1_l=answers[1]
+                else:
+                    a1_w=answers[1]
+                    a1_l=answers[0]
+                if score[2][0]>score[2][1]:
+                    a2_w=answers[2]
+                    a2_l=answers[3]
+                else:
+                    a2_w=answers[3]
+                    a2_l=answers[2]
             else:
                 q_w=qs[1]
                 q_l=qs[0]
-            if score[1][0]>score[1][1]:
-                a1_w=answers[0]
-                a1_l=answers[1]
-            else:
-                a1_w=answers[1]
-                a1_l=answers[0]
-            if score[2][0]>score[2][1]:
-                a2_w=answers[2]
-                a2_l=answers[3]
-            else:
-                a2_w=answers[3]
-                a2_l=answers[2]
+                if score[1][0]>score[1][1]:
+                    a2_w=answers[0]
+                    a2_l=answers[1]
+                else:
+                    a2_w=answers[1]
+                    a2_l=answers[0]
+                if score[2][0]>score[2][1]:
+                    a1_w=answers[2]
+                    a1_l=answers[3]
+                else:
+                    a1_w=answers[3]
+                    a1_l=answers[2]
             cur_review={"video": video_file,"sampler":source['sampler'],"c_pref": {'q':q_w,'a_w':a1_w,'a_l':a1_l},"c_rej":{'q':q_l,'a_w':a2_w,'a_l':a2_l}}
             review_file.write(json.dumps(cur_review)+'\n')
             review_file.flush()
