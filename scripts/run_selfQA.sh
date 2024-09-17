@@ -13,6 +13,7 @@ for IDX in $(seq 0 $((CHUNKS-1))); do
         --model-base lmms-lab/llava-onevision-qwen2-7b-ov \
         --question-file ./data/m4_instruct_video.json \
         --video-folder ./data/video \
+        --model-name sqllava-lora-7b-qwen \
         --answers-file ${CHUNKS}_${IDX}.json \
         --out_dir ./data/selfqa/$CKPT \
         --num-chunks $CHUNKS \

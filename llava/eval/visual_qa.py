@@ -72,7 +72,7 @@ def eval_model(args):
     model_path = os.path.expanduser(args.model_path)
     lora_pt = os.path.join(args.model_path, "Vit-lora")
     model_name = get_model_name_from_path(model_path)
-    tokenizer, model, image_processor, max_length = load_pretrained_model(model_path, args.model_base, model_name, device_map=device_map,lora_pt=lora_pt)
+    tokenizer, model, image_processor, max_length = load_pretrained_model(model_path, args.model_base, args.model_name, device_map=device_map,lora_pt=lora_pt)
 
     model.eval()
     #data_dict = json.load(open(args.question_file,'r'))[:args.test_size]
@@ -168,6 +168,7 @@ if __name__ == "__main__":
     parser.add_argument("--model-path", type=str, default="facebook/opt-350m")
     parser.add_argument("--model-base", type=str, default=None)
     parser.add_argument("--video-folder", type=str, default="")
+    parser.add_argument("--model-name", type=str, default="")
     parser.add_argument("--out_dir", type=str, default="")
     parser.add_argument("--extra-prompt", type=str, default="")
     parser.add_argument("--question-file", type=str, default="tables/question.jsonl")

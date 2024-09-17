@@ -12,6 +12,7 @@ for IDX in $(seq 0 $((CHUNKS-1))); do
         --model-path ./checkpoints/sqllava-ov-lora-0.5b-M4Video-resumov-2e5lr \
         --model-base lmms-lab/llava-onevision-qwen2-0.5b-ov \
         --question-file ./data/m4_instruct_video.json \
+        --model-name sqllava-lora-0.5b-qwen \
         --video-folder ./data/video \
         --answers-file ${CHUNKS}_${IDX}.json \
         --out_dir ./data/selfqa/$CKPT \
