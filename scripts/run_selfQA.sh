@@ -6,7 +6,7 @@ IFS=',' read -ra GPULIST <<< "$gpu_list"
 
 CHUNKS=${#GPULIST[@]}
 
-CKPT="llava-ov-72b-100k"
+CKPT="sqllava-ov-7b"
 for IDX in $(seq 0 $((CHUNKS-1))); do
     CUDA_VISIBLE_DEVICES=${GPULIST[$IDX]} python -m llava.eval.visual_qa \
         --model-path ./checkpoints/sqllava-lora-qwen-7b-ovVideo-v2 \
@@ -16,8 +16,7 @@ for IDX in $(seq 0 $((CHUNKS-1))); do
         --answers-file ${CHUNKS}_${IDX}.json \
         --out_dir ./data/selfqa/$CKPT \
         --num-chunks $CHUNKS \
-        --chunk-idx $IDX \
-        --test_size 1000000 &
+        --chunk-idx $IDX &
 done
 
 wait

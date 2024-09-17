@@ -75,7 +75,8 @@ def eval_model(args):
     tokenizer, model, image_processor, max_length = load_pretrained_model(model_path, args.model_base, model_name, device_map=device_map,lora_pt=lora_pt)
 
     model.eval()
-    data_dict = json.load(open(args.question_file,'r'))[:args.test_size]
+    #data_dict = json.load(open(args.question_file,'r'))[:args.test_size]
+    data_dict = json.load(open(args.question_file,'r'))
     data_dict = get_chunk(data_dict, args.num_chunks, args.chunk_idx)
     converted_data = []
     id=0
