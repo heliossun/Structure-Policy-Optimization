@@ -9,7 +9,7 @@ CHUNKS=${#GPULIST[@]}
 CKPT="sqllava-ov-0.5b"
 for IDX in $(seq 0 $((CHUNKS-1))); do
     CUDA_VISIBLE_DEVICES=${GPULIST[$IDX]} python -m llava.eval.visual_qa \
-        --model-path ./checkpoints/sqllava-lora-qwen-0.5b-ovVideo \
+        --model-path ./checkpoints/sqllava-ov-lora-0.5b-M4Video-resumov-2e5lr \
         --model-base lmms-lab/llava-onevision-qwen2-0.5b-ov \
         --question-file ./data/m4_instruct_video.json \
         --video-folder ./data/video \
