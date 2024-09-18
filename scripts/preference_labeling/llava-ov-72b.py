@@ -8,7 +8,7 @@ import torch
 import numpy as np
 from PIL import Image
 from tqdm import tqdm
-sys.path.insert(0,'/home/gs4288/LLaVA-NeXT')
+sys.path.insert(0,'/home/gs4288/stepQ-LVA')
 from llava.model.builder import load_pretrained_model
 from llava.mm_utils import get_model_name_from_path, process_images, tokenizer_image_token
 from llava.constants import IMAGE_TOKEN_INDEX, DEFAULT_IMAGE_TOKEN, DEFAULT_IM_START_TOKEN, DEFAULT_IM_END_TOKEN, IGNORE_INDEX
@@ -115,7 +115,7 @@ if __name__ == '__main__':
             )
             text_outputs = tokenizer.batch_decode(cont, skip_special_tokens=True)[0]
             score.append(parse_score(text_outputs))
-        if min(score[0])>=6.0:
+        if min(score[0])>=5.0:
             if score[0][0]>score[0][1]:
                 q_w=qs[0]
                 q_l=qs[1]
