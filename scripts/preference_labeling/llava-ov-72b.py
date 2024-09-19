@@ -74,7 +74,7 @@ if __name__ == '__main__':
                                                                           attn_implementation="sdpa")
     model.eval()
     try:
-        data_dict = json.load(open(args.qafile, encoding='utf-8'))
+        data_dict = json.load(open(args.qafile, 'r',encoding='utf-8'))
     except:
         data_dict=[json.loads(line) for line in open(args.qafile, encoding='utf-8')]
     review_file = open(f'{args.output}', 'a')
