@@ -78,7 +78,10 @@ def eval_model(args):
     #data_dict = json.load(open(args.question_file,'r'))[:args.test_size]
     data_dict = json.load(open(args.question_file,'r'))
     data_dict = get_chunk(data_dict, args.num_chunks, args.chunk_idx)
-    converted_data = []
+    if not os.path.exists(args.out_dir):
+    # If it doesn't exist, create the directory
+        os.makedirs(args.out_dir)
+    out_file = open(os.path.join(args.out_dir,args.answers_file), 'a',encoding='utf-8')
     id=0
     for source in tqdm(data_dict):
         video_file = source["video"]
@@ -151,17 +154,19 @@ def eval_model(args):
                 answer = tokenizer.batch_decode(cont, skip_special_tokens=True)[0]
                 answers.append(answer)
 
-        converted_data.append({"id": id,
-                    "video": video_file,
-                    "sampler": [fqs,first_answer],
-                    "questions": questions,
-                    "answers":answers})
+        out_p={"id": id,
+               "video": video_file,
+               "sampler": [fqs,first_answer],
+               "questions": questions,
+               "answers":answers}
         id+=1
-    if not os.path.exists(args.out_dir):
-    # If it doesn't exist, create the directory
-        os.makedirs(args.out_dir)
-    with open(os.path.join(args.out_dir,args.answers_file), "w") as f:
-        json.dump(converted_data, f, indent=5, ensure_ascii=False)
+        try:
+            out_file.write(json.dumps(out_p)+'\n')
+            out_file.flush()
+        except:
+            pass
+    out_file.close()
+    
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()

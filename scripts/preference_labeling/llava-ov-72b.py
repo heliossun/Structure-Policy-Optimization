@@ -73,8 +73,10 @@ if __name__ == '__main__':
                                                                           device_map=device_map,
                                                                           attn_implementation="sdpa")
     model.eval()
-
-    data_dict = json.load(open(args.qafile, 'r'))
+    try:
+        data_dict = json.load(open(args.qafile, encoding='utf-8'))
+    except:
+        data_dict=[json.loads(line) for line in open(args.qafile, encoding='utf-8')]
     review_file = open(f'{args.output}', 'a')
     # Labeling preference / reject answers and save the results in $review_file.
     conv_template = "qwen_1_5"
