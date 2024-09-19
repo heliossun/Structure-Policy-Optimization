@@ -13,9 +13,19 @@ from llava.model.builder import load_pretrained_model
 from llava.mm_utils import get_model_name_from_path, process_images, tokenizer_image_token
 from llava.constants import IMAGE_TOKEN_INDEX, DEFAULT_IMAGE_TOKEN, DEFAULT_IM_START_TOKEN, DEFAULT_IM_END_TOKEN, IGNORE_INDEX
 from llava.conversation import conv_templates, SeparatorStyle
-
+import math
 from llava.utils import rank0_print
 torch.backends.cuda.matmul.allow_tf32 = True
+
+def split_list(lst, n):
+    """Split a list into n (roughly) equal-sized chunks"""
+    chunk_size = math.ceil(len(lst) / n)  # integer division
+    return [lst[i:i+chunk_size] for i in range(0, len(lst), chunk_size)]
+
+
+def get_chunk(lst, n, k):
+    chunks = split_list(lst, n)
+    return chunks[k]
 
 def load_frames(video_file, num_frames_to_sample=10):
     frame_files = [os.path.join(video_file, f) for f in os.listdir(video_file) if
@@ -62,6 +72,10 @@ if __name__ == '__main__':
     parser.add_argument('-r', '--rule')
     parser.add_argument('-o', '--output')
     parser.add_argument('--video_folder')
+    parser.add_argument("--answers-file", type=str, default="answer.jsonl")
+    parser.add_argument("--out_dir", type=str, default="")
+    parser.add_argument("--num-chunks", type=int, default=1)
+    parser.add_argument("--chunk-idx", type=int, default=0)
     parser.add_argument('--max-tokens', type=int, default=1024, help='maximum number of tokens produced in the output')
     args = parser.parse_args()
     device_map = "auto" # this will dispatch model
@@ -77,7 +91,14 @@ if __name__ == '__main__':
         data_dict = json.load(open(args.qafile, 'r',encoding='utf-8'))
     except:
         data_dict=[json.loads(line) for line in open(args.qafile, encoding='utf-8')]
-    review_file = open(f'{args.output}', 'a')
+    data_dict = get_chunk(data_dict, args.num_chunks, args.chunk_idx)
+    
+    
+    if not os.path.exists(args.out_dir):
+    # If it doesn't exist, create the directory
+        os.makedirs(args.out_dir)
+    review_file = open(os.path.join(args.out_dir,args.answers_file), 'a')
+
     # Labeling preference / reject answers and save the results in $review_file.
     conv_template = "qwen_1_5"
     rule_dict = json.load(open(os.path.expanduser(args.rule), 'r'))
@@ -86,7 +107,7 @@ if __name__ == '__main__':
         conv = copy.deepcopy(conv_templates[conv_template])
         video_file = source["video"]
         video = os.path.join(args.video_folder, video_file)
-        video_frames = load_frames(video,num_frames_to_sample=32)
+        video_frames = load_frames(video,num_frames_to_sample=30)
         image_tensors = process_images(video_frames, image_processor, model.config)
         image_tensors = [_image.to(dtype=torch.float16, device=device) for _image in image_tensors]
         image_sizes = [frame.size for frame in video_frames]
