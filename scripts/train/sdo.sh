@@ -8,7 +8,7 @@ ACCELERATE_CPU_AFFINITY=1 torchrun --nproc_per_node=1 --nnodes=1  \
     --data_path ./data/7b_selfQA_labeling-72b-chat.json \
     --video_folder ./data/video \
     --mm_tunable_parts="mm_vision_tower,mm_mlp_adapter,mm_language_model" \
-    --mm_vision_tower_lr 1e-5 \
+    --mm_vision_tower_lr 2e-5 \
     --vit_lora_enable \
     --lora_alpha_vit 128 \
     --lora_r_vit 64 \
@@ -24,7 +24,7 @@ ACCELERATE_CPU_AFFINITY=1 torchrun --nproc_per_node=1 --nnodes=1  \
     --bf16 True \
     --run_name test \
     --output_dir "./checkpoints/ours-7b-qwen-lora-sdo" \
-    --num_train_epochs 1.5 \
+    --num_train_epochs 1 \
     --per_device_train_batch_size 2 \
     --per_device_eval_batch_size 4 \
     --gradient_accumulation_steps 8 \
@@ -32,7 +32,7 @@ ACCELERATE_CPU_AFFINITY=1 torchrun --nproc_per_node=1 --nnodes=1  \
     --save_strategy "steps" \
     --save_steps 1000000 \
     --save_total_limit 1 \
-    --learning_rate 2e-5 \
+    --learning_rate 5e-5 \
     --weight_decay 0. \
     --warmup_ratio 0.15 \
     --lr_scheduler_type "linear" \
