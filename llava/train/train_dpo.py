@@ -34,21 +34,25 @@ import torch
 
 import transformers
 import tokenizers
+import sys
 
-from llava.constants import IGNORE_INDEX, DEFAULT_IMAGE_TOKEN, DEFAULT_IM_START_TOKEN, DEFAULT_IM_END_TOKEN, IMAGE_TOKEN_INDEX
+sys.path.insert(0, '/home/gs4288/LLaVA-NeXT')
+from llava.constants import IGNORE_INDEX, DEFAULT_IMAGE_TOKEN, DEFAULT_IM_START_TOKEN, DEFAULT_IM_END_TOKEN, \
+    IMAGE_TOKEN_INDEX
 from torch.utils.data import Dataset
 from llava.train.llava_trainer import LLaVADPOTrainer
-from data_processing.utils import load_jsonl, load_json
+
 from llava import conversation as conversation_lib
 from llava.model import *
 from llava.model.language_model.llava_qwen import LlavaQwenConfig
 from llava.model.language_model.llava_llama import LlavaConfig
 from llava.model.language_model.llava_mistral import LlavaMistralConfig
-from llava.mm_utils import process_highres_image, process_anyres_image, process_highres_image_crop_split, tokenizer_image_token
+from llava.mm_utils import process_highres_image, process_anyres_image, process_highres_image_crop_split, \
+    tokenizer_image_token
 from llava.utils import rank0_print
 from transformers import AutoConfig
 import pickle
-
+from peft import LoraConfig, get_peft_model, set_peft_model_state_dict
 from trl.trainer.utils import DPODataCollatorWithPadding
 from PIL import Image, ImageFile
 from decord import VideoReader, cpu
@@ -66,10 +70,12 @@ IS_TOKENIZER_GREATER_THAN_0_14 = version.parse(tokenizers.__version__) >= versio
 @dataclass
 class ModelArguments:
     model_name_or_path: Optional[str] = field(default="facebook/opt-125m")
-    model_class_name: Optional[str] = field(default=None, metadata={"help": "Used to init model class, format is XXXXForCausalLM. e.g. currently XXXX is chosen from LlavaLlama, LlavaMixtral, LlavaMistral, Llama"})
+    model_class_name: Optional[str] = field(default=None, metadata={
+        "help": "Used to init model class, format is XXXXForCausalLM. e.g. currently XXXX is chosen from LlavaLlama, LlavaMixtral, LlavaMistral, Llama"})
 
     mm_tunable_parts: Optional[str] = field(
-        default=None, metadata={"help": 'Could be "mm_mlp_adapter", "mm_vision_resampler", "mm_vision_tower,mm_mlp_adapter,mm_language_model", "mm_vision_tower,mm_mlp_adapter,mm_language_model", "mm_mlp_adapter,mm_language_model"'}
+        default=None, metadata={
+            "help": 'Could be "mm_mlp_adapter", "mm_vision_resampler", "mm_vision_tower,mm_mlp_adapter,mm_language_model", "mm_vision_tower,mm_mlp_adapter,mm_language_model", "mm_mlp_adapter,mm_language_model"'}
     )
     # deciding which part of the multimodal model to tune, will overwrite other previous settings
 
@@ -112,10 +118,13 @@ class ModelArguments:
     s2: Optional[bool] = field(default=False)
     s2_scales: Optional[str] = field(default="336,672,1008")
 
+    pt_vitlora: Optional[str] = field(default=None)
+
 
 @dataclass
 class DataArguments:
-    data_path: str = field(default=None, metadata={"help": "Path to the training data, in llava's instruction.json format. Supporting multiple json files via /path/to/{a,b,c}.json"})
+    data_path: str = field(default=None, metadata={
+        "help": "Path to the training data, in llava's instruction.json format. Supporting multiple json files via /path/to/{a,b,c}.json"})
     lazy_preprocess: bool = False
     is_multimodal: bool = False
     image_folder: Optional[str] = field(default=None)
@@ -143,8 +152,10 @@ class TrainingArguments(transformers.TrainingArguments):
         default=4096,
         metadata={"help": "Maximum sequence length. Sequences will be right padded (and possibly truncated)."},
     )
-    double_quant: bool = field(default=True, metadata={"help": "Compress the quantization statistics through double quantization."})
-    quant_type: str = field(default="nf4", metadata={"help": "Quantization data type to use. Should be one of `fp4` or `nf4`."})
+    double_quant: bool = field(default=True,
+                               metadata={"help": "Compress the quantization statistics through double quantization."})
+    quant_type: str = field(default="nf4",
+                            metadata={"help": "Quantization data type to use. Should be one of `fp4` or `nf4`."})
     bits: int = field(default=16, metadata={"help": "How many bits to use."})
     lora_enable: bool = False
     lora_r: int = 64
@@ -152,6 +163,9 @@ class TrainingArguments(transformers.TrainingArguments):
     lora_dropout: float = 0.05
     lora_weight_path: str = ""
     lora_bias: str = "none"
+    vit_lora_enable: bool = False
+    lora_alpha_vit: int = 32
+    lora_r_vit: int = 64
     mm_projector_lr: Optional[float] = None
     mm_vision_tower_lr: Optional[float] = None
     group_by_varlen: bool = field(default=False)
@@ -160,7 +174,8 @@ class TrainingArguments(transformers.TrainingArguments):
     auto_find_batch_size: bool = field(default=False)
     gradient_checkpointing: bool = field(default=True)
     verbose_logging: bool = field(default=False)
-    attn_implementation: str = field(default="flash_attention_2", metadata={"help": "Use transformers attention implementation."})
+    attn_implementation: str = field(default="flash_attention_2",
+                                     metadata={"help": "Use transformers attention implementation."})
     dpo_alpha: float = field(default=1.0)
     beta: float = field(default=0.1)
     gamma: float = field(default=1.0)
@@ -223,19 +238,18 @@ def get_mm_adapter_state_maybe_zero_3(named_params, keys_to_match):
     return to_return
 
 
-def find_all_linear_names(model):
+def find_all_linear_names(model, prevent_keywords=[]):
     cls = torch.nn.Linear
     lora_module_names = set()
-    multimodal_keywords = ["mm_projector", "vision_tower", "vision_resampler"]
     for name, module in model.named_modules():
-        if any(mm_keyword in name for mm_keyword in multimodal_keywords):
+        if any(mm_keyword in name for mm_keyword in prevent_keywords):
             continue
         if isinstance(module, cls):
-            names = name.split(".")
-            lora_module_names.add(names[0] if len(names) == 1 else names[-1])
-
-    if "lm_head" in lora_module_names:  # needed for 16-bit
-        lora_module_names.remove("lm_head")
+            # names = name.split('.')
+            # lora_module_names.add(names[0] if len(names) == 1 else names[-1])
+            lora_module_names.add(name)
+    if 'lm_head' in lora_module_names:  # needed for 16-bit
+        lora_module_names.remove('lm_head')
     return list(lora_module_names)
 
 
@@ -244,7 +258,8 @@ def safe_save_model_for_hf_trainer(trainer: transformers.Trainer, output_dir: st
     if hasattr(trainer.args, "tune_mm_mlp_adapter") and trainer.args.tune_mm_mlp_adapter:
         check_only_save_mm_adapter_tunnable = True
     # only has mm_mlp_adapter and mm_vision_resampler in the tuneable parts
-    elif hasattr(trainer.args, "mm_tunable_parts") and (len(trainer.args.mm_tunable_parts.split(",")) == 1 and ("mm_mlp_adapter" in trainer.args.mm_tunable_parts or "mm_vision_resampler" in trainer.args.mm_tunable_parts)):
+    elif hasattr(trainer.args, "mm_tunable_parts") and (len(trainer.args.mm_tunable_parts.split(",")) == 1 and (
+        "mm_mlp_adapter" in trainer.args.mm_tunable_parts or "mm_vision_resampler" in trainer.args.mm_tunable_parts)):
         check_only_save_mm_adapter_tunnable = True
     else:
         check_only_save_mm_adapter_tunnable = False
@@ -319,7 +334,8 @@ def _tokenize_fn(strings: Sequence[str], tokenizer: transformers.PreTrainedToken
         for text in strings
     ]
     input_ids = labels = [tokenized.input_ids[0] for tokenized in tokenized_list]
-    input_ids_lens = labels_lens = [tokenized.input_ids.ne(tokenizer.pad_token_id).sum().item() for tokenized in tokenized_list]
+    input_ids_lens = labels_lens = [tokenized.input_ids.ne(tokenizer.pad_token_id).sum().item() for tokenized in
+                                    tokenized_list]
     return dict(
         input_ids=input_ids,
         labels=labels,
@@ -335,7 +351,7 @@ def _mask_targets(target, tokenized_lens, speakers):
     target[:cur_idx] = IGNORE_INDEX
     for tokenized_len, speaker in zip(tokenized_lens, speakers):
         if speaker == "human":
-            target[cur_idx + 2 : cur_idx + tokenized_len] = IGNORE_INDEX
+            target[cur_idx + 2: cur_idx + tokenized_len] = IGNORE_INDEX
         cur_idx += tokenized_len
 
 
@@ -371,7 +387,8 @@ def preprocess_multimodal(sources: Sequence[str], data_args: DataArguments) -> D
                 sentence["value"] = DEFAULT_IMAGE_TOKEN + "\n" + sentence["value"]
                 sentence["value"] = sentence["value"].strip()
                 if "mmtag" in conversation_lib.default_conversation.version:
-                    sentence["value"] = sentence["value"].replace(DEFAULT_IMAGE_TOKEN, "<Image>" + DEFAULT_IMAGE_TOKEN + "</Image>")
+                    sentence["value"] = sentence["value"].replace(DEFAULT_IMAGE_TOKEN,
+                                                                  "<Image>" + DEFAULT_IMAGE_TOKEN + "</Image>")
             replace_token = DEFAULT_IMAGE_TOKEN
             if data_args.mm_use_im_start_end:
                 replace_token = DEFAULT_IM_START_TOKEN + replace_token + DEFAULT_IM_END_TOKEN
@@ -418,7 +435,8 @@ def preprocess_llama_2(sources, tokenizer: transformers.PreTrainedTokenizer, has
     # Tokenize conversations
 
     if has_image:
-        input_ids = torch.stack([tokenizer_image_token(prompt, tokenizer, return_tensors="pt") for prompt in conversations], dim=0)
+        input_ids = torch.stack(
+            [tokenizer_image_token(prompt, tokenizer, return_tensors="pt") for prompt in conversations], dim=0)
     else:
         input_ids = tokenizer(
             conversations,
@@ -456,7 +474,7 @@ def preprocess_llama_2(sources, tokenizer: transformers.PreTrainedTokenizer, has
                 round_len = len(tokenizer(rou).input_ids)
                 instruction_len = len(tokenizer(parts[0]).input_ids) - 2
 
-            target[cur_len : cur_len + instruction_len] = IGNORE_INDEX
+            target[cur_len: cur_len + instruction_len] = IGNORE_INDEX
 
             cur_len += round_len
         target[cur_len:] = IGNORE_INDEX
@@ -485,7 +503,8 @@ def make_conv(prompt, answer):
     ]
 
 
-def preprocess_gemma(sources: List[List[Dict[str, str]]], tokenizer: transformers.PreTrainedTokenizer, has_image: bool = False) -> Dict:
+def preprocess_gemma(sources: List[List[Dict[str, str]]], tokenizer: transformers.PreTrainedTokenizer,
+                     has_image: bool = False) -> Dict:
     conv: conversation_lib.Conversation = conversation_lib.default_conversation.copy()
     roles: Dict[str, str] = {"human": conv.roles[0], "gpt": conv.roles[1]}
 
@@ -505,7 +524,8 @@ def preprocess_gemma(sources: List[List[Dict[str, str]]], tokenizer: transformer
 
     # Tokenize conversations
     if has_image:
-        input_ids: torch.Tensor = torch.stack([tokenizer_image_token(prompt, tokenizer, return_tensors="pt") for prompt in conversations], dim=0)
+        input_ids: torch.Tensor = torch.stack(
+            [tokenizer_image_token(prompt, tokenizer, return_tensors="pt") for prompt in conversations], dim=0)
     else:
         input_ids: torch.Tensor = tokenizer(
             conversations,
@@ -526,7 +546,7 @@ def preprocess_gemma(sources: List[List[Dict[str, str]]], tokenizer: transformer
         rounds: List[str] = conversation.split(conv.sep)
         re_rounds = []
         for conv_idx in range(0, len(rounds), 2):
-            re_rounds.append(conv.sep.join(rounds[conv_idx : conv_idx + 2]))
+            re_rounds.append(conv.sep.join(rounds[conv_idx: conv_idx + 2]))
 
         cur_len = 1  # Ignore <bos>
         target[:cur_len] = IGNORE_INDEX
@@ -548,7 +568,7 @@ def preprocess_gemma(sources: List[List[Dict[str, str]]], tokenizer: transformer
                 instruction_len = len(tokenizer(parts[0]).input_ids) - 1  # Ignore <bos>
 
             round_len += 2  # sep: <end_of_turn>\n takes 2 tokens
-            target[cur_len : cur_len + instruction_len] = IGNORE_INDEX
+            target[cur_len: cur_len + instruction_len] = IGNORE_INDEX
             cur_len += round_len
 
         target[cur_len:] = IGNORE_INDEX
@@ -564,7 +584,8 @@ def preprocess_gemma(sources: List[List[Dict[str, str]]], tokenizer: transformer
     )
 
 
-def preprocess_qwen(sources, tokenizer: transformers.PreTrainedTokenizer, has_image: bool = False, max_len=2048, system_message: str = "You are a helpful assistant.") -> Dict:
+def preprocess_qwen(sources, tokenizer: transformers.PreTrainedTokenizer, has_image: bool = False, max_len=2048,
+                    system_message: str = "You are a helpful assistant.") -> Dict:
     roles = {"human": "<|im_start|>user", "gpt": "<|im_start|>assistant"}
 
     im_start, im_end = tokenizer.additional_special_tokens_ids
@@ -589,14 +610,17 @@ def preprocess_qwen(sources, tokenizer: transformers.PreTrainedTokenizer, has_im
             if has_image and "<image>" in sentence["value"]:
                 assert sentence["value"].startswith("<image>"), print(sentence["value"])
 
-                _input_id = tokenizer(role).input_ids + nl_tokens + [IMAGE_TOKEN_INDEX] + nl_tokens + tokenizer(sentence["value"][len("<image>") :]).input_ids + [im_end] + nl_tokens
+                _input_id = tokenizer(role).input_ids + nl_tokens + [IMAGE_TOKEN_INDEX] + nl_tokens + tokenizer(
+                    sentence["value"][len("<image>"):]).input_ids + [im_end] + nl_tokens
             else:
-                _input_id = tokenizer(role).input_ids + nl_tokens + tokenizer(sentence["value"]).input_ids + [im_end] + nl_tokens
+                _input_id = tokenizer(role).input_ids + nl_tokens + tokenizer(sentence["value"]).input_ids + [
+                    im_end] + nl_tokens
             input_id += _input_id
             if role == "<|im_start|>user":
                 _target = [im_start] + [IGNORE_INDEX] * (len(_input_id) - 3) + [im_end] + nl_tokens
             elif role == "<|im_start|>assistant":
-                _target = [im_start] + [IGNORE_INDEX] * len(tokenizer(role).input_ids) + _input_id[len(tokenizer(role).input_ids) + 1 : -2] + [im_end] + nl_tokens
+                _target = [im_start] + [IGNORE_INDEX] * len(tokenizer(role).input_ids) + _input_id[len(tokenizer(
+                    role).input_ids) + 1: -2] + [im_end] + nl_tokens
             else:
                 raise NotImplementedError
             target += _target
@@ -622,7 +646,8 @@ def preprocess_llama3(
     max_len=2048,
     system_message: str = "You are a helpful language and vision assistant. You are able to understand the visual content that the user provides, and assist the user with a variety of tasks using natural language.",
 ) -> Dict:
-    roles = {"human": "<|start_header_id|>user<|end_header_id|>", "gpt": "<|start_header_id|>assistant<|end_header_id|>"}
+    roles = {"human": "<|start_header_id|>user<|end_header_id|>",
+             "gpt": "<|start_header_id|>assistant<|end_header_id|>"}
 
     eot_id = tokenizer.convert_tokens_to_ids("<|eot_id|>")
     nl_tokens = tokenizer("\n").input_ids
@@ -634,21 +659,26 @@ def preprocess_llama3(
             source = source[1:]
 
         input_id, target = [], []
-        system = tokenizer("<|begin_of_text|>").input_ids + tokenizer("<|start_header_id|>system<|end_header_id|>").input_ids + nl_tokens * 2 + tokenizer(system_message).input_ids + [eot_id]
+        system = tokenizer("<|begin_of_text|>").input_ids + tokenizer(
+            "<|start_header_id|>system<|end_header_id|>").input_ids + nl_tokens * 2 + tokenizer(
+            system_message).input_ids + [eot_id]
         input_id += system
         target += [IGNORE_INDEX] * len(system)
         for j, sentence in enumerate(source):
             role = roles[sentence["from"]]
             if has_image and "<image>" in sentence["value"]:
                 assert sentence["value"].startswith("<image>"), print(sentence["value"])
-                _input_id = tokenizer(role).input_ids + nl_tokens * 2 + [IMAGE_TOKEN_INDEX] + tokenizer(sentence["value"][len("<image>") :]).input_ids + [eot_id]
+                _input_id = tokenizer(role).input_ids + nl_tokens * 2 + [IMAGE_TOKEN_INDEX] + tokenizer(
+                    sentence["value"][len("<image>"):]).input_ids + [eot_id]
             else:
-                _input_id = tokenizer(role).input_ids + nl_tokens * 2 + tokenizer(sentence["value"]).input_ids + [eot_id]
+                _input_id = tokenizer(role).input_ids + nl_tokens * 2 + tokenizer(sentence["value"]).input_ids + [
+                    eot_id]
             input_id += _input_id
             if role == "<|start_header_id|>user<|end_header_id|>":
                 _target = [IGNORE_INDEX] * len(_input_id)
             elif role == "<|start_header_id|>assistant<|end_header_id|>":
-                _target = [IGNORE_INDEX] * (len(tokenizer(role).input_ids) + 2) + _input_id[len(tokenizer(role).input_ids) + 2 : -1] + [eot_id]
+                _target = [IGNORE_INDEX] * (len(tokenizer(role).input_ids) + 2) + _input_id[len(tokenizer(
+                    role).input_ids) + 2: -1] + [eot_id]
             else:
                 raise NotImplementedError
             target += _target
@@ -685,7 +715,8 @@ def preprocess_v1(sources, tokenizer: transformers.PreTrainedTokenizer, has_imag
     # Tokenize conversations
 
     if has_image:
-        input_ids = torch.stack([tokenizer_image_token(prompt, tokenizer, return_tensors="pt") for prompt in conversations], dim=0)
+        input_ids = torch.stack(
+            [tokenizer_image_token(prompt, tokenizer, return_tensors="pt") for prompt in conversations], dim=0)
     else:
         input_ids = tokenizer(
             conversations,
@@ -727,7 +758,7 @@ def preprocess_v1(sources, tokenizer: transformers.PreTrainedTokenizer, has_imag
                 round_len -= 1
                 instruction_len -= 1
 
-            target[cur_len : cur_len + instruction_len] = IGNORE_INDEX
+            target[cur_len: cur_len + instruction_len] = IGNORE_INDEX
 
             cur_len += round_len
         target[cur_len:] = IGNORE_INDEX
@@ -764,7 +795,8 @@ def preprocess_mpt(sources, tokenizer: transformers.PreTrainedTokenizer, has_ima
     # Tokenize conversations
 
     if has_image:
-        input_ids = torch.stack([tokenizer_image_token(prompt, tokenizer, return_tensors="pt") for prompt in conversations], dim=0)
+        input_ids = torch.stack(
+            [tokenizer_image_token(prompt, tokenizer, return_tensors="pt") for prompt in conversations], dim=0)
     else:
         input_ids = tokenizer(
             conversations,
@@ -785,7 +817,7 @@ def preprocess_mpt(sources, tokenizer: transformers.PreTrainedTokenizer, has_ima
         rounds = conversation.split(conv.sep)
         re_rounds = [conv.sep.join(rounds[:3])]  # system + user + gpt
         for conv_idx in range(3, len(rounds), 2):
-            re_rounds.append(conv.sep.join(rounds[conv_idx : conv_idx + 2]))  # user + gpt
+            re_rounds.append(conv.sep.join(rounds[conv_idx: conv_idx + 2]))  # user + gpt
         cur_len = 1
         target[:cur_len] = IGNORE_INDEX
         for i, rou in enumerate(re_rounds):
@@ -808,7 +840,7 @@ def preprocess_mpt(sources, tokenizer: transformers.PreTrainedTokenizer, has_ima
                 round_len += 1
                 instruction_len += 1
 
-            target[cur_len : cur_len + instruction_len] = IGNORE_INDEX
+            target[cur_len: cur_len + instruction_len] = IGNORE_INDEX
 
             cur_len += round_len
         target[cur_len:] = IGNORE_INDEX
@@ -816,7 +848,8 @@ def preprocess_mpt(sources, tokenizer: transformers.PreTrainedTokenizer, has_ima
         if cur_len < tokenizer.model_max_length:
             if cur_len != total_len:
                 target[:] = IGNORE_INDEX
-                print(f"WARNING: tokenization mismatch: {cur_len} vs. {total_len}." f"(#turns={len(re_rounds)} ignored)")
+                print(
+                    f"WARNING: tokenization mismatch: {cur_len} vs. {total_len}." f"(#turns={len(re_rounds)} ignored)")
 
     return dict(
         input_ids=input_ids,
@@ -897,14 +930,6 @@ def preprocess(sources: Sequence[str], tokenizer: transformers.PreTrainedTokeniz
     return dict(input_ids=input_ids, labels=targets)
 
 
-def load_data(data_path):
-    if "jsonl" in data_path:
-        data_list = load_jsonl(data_path)
-    else:
-        data_list = load_json(data_path)
-    return data_list
-
-
 class DPODataset(Dataset):
     """Dataset for DPODataset fine-tuning."""
 
@@ -922,9 +947,10 @@ class DPODataset(Dataset):
                 data_args.dataset_paths.append(f"{base_path}{file_name}.json")
                 full_path = f"{base_path}{file_name}.json"
                 rank0_print(f"Loading {full_path}")
-                cur_data_dict = load_data(full_path)
-                rank0_print(f"Loaded {len(cur_data_dict)} samples from {full_path}")
-                self.list_data_dict.extend(cur_data_dict)
+                with open(full_path, "r") as file:
+                    cur_data_dict = json.load(file)
+                    rank0_print(f"Loaded {len(cur_data_dict)} samples from {full_path}")
+                    self.list_data_dict.extend(cur_data_dict)
         elif data_path.endswith(".yaml"):
             with open(data_path, "r") as file:
                 yaml_data = yaml.safe_load(file)
@@ -944,7 +970,17 @@ class DPODataset(Dataset):
                     sampling_number = None
 
                     rank0_print(f"Loading {json_path} with {sampling_strategy} sampling strategy")
-                    cur_data_dict = load_data(json_path)
+
+                    if json_path.endswith(".jsonl"):
+                        cur_data_dict = []
+                        with open(json_path, "r") as json_file:
+                            for line in json_file:
+                                cur_data_dict.append(json.loads(line.strip()))
+                    elif json_path.endswith(".json"):
+                        with open(json_path, "r") as json_file:
+                            cur_data_dict = json.load(json_file)
+                    else:
+                        raise ValueError(f"Unsupported file type: {json_path}")
 
                     if ":" in sampling_strategy:
                         sampling_strategy, sampling_number = sampling_strategy.split(":")
@@ -967,11 +1003,13 @@ class DPODataset(Dataset):
         else:
             data_args.dataset_paths = [data_path]
             rank0_print(f"Loading {data_path}")
-            cur_data_dict = load_data(data_path)
-            rank0_print(f"Loaded {len(cur_data_dict)} samples from {data_path}")
-            self.list_data_dict.extend(cur_data_dict)
 
-        rank0_print("Formatting inputs...Skip in lazy mode")
+            try:
+                cur_data_dict = json.load(open(data_path, 'r'))
+            except:
+                cur_data_dict = [json.loads(line) for line in open(os.path.expanduser(data_path))]
+            rank0_print(f"<<<<<<<<<<<<Loaded {len(cur_data_dict)} samples from {data_path}")
+            self.list_data_dict.extend(cur_data_dict)
         self.tokenizer = tokenizer
         self.data_args = data_args
 
@@ -983,7 +1021,8 @@ class DPODataset(Dataset):
         length_list = []
         for sample in self.list_data_dict:
             # Calculate the length of the prompt, answer, chosen, and rejected text
-            cur_len = len(sample["prompt"].split()) + len(sample["answer"].split()) + len(sample["chosen"].split()) + len(sample["rejected"].split())
+            cur_len = len(sample["prompt"].split()) + len(sample["answer"].split()) + len(
+                sample["chosen"].split()) + len(sample["rejected"].split())
             # Add additional tokens if an image is present
             img_tokens = 128 if "image" in sample else 0
             length_list.append(cur_len + img_tokens)
@@ -993,14 +1032,16 @@ class DPODataset(Dataset):
     def modality_lengths(self):
         length_list = []
         for sample in self.list_data_dict:
-            # Calculate the length of the prompt, answer, chosen, and rejected text
-            cur_len = len(sample["prompt"].split()) + len(sample["answer"].split()) + len(sample["chosen"].split()) + len(sample["rejected"].split())
+            # Calculate the length of the prompt, chosen, and rejected text ( regular dpo for now)
+            # TODO: modify this to SDO: two conversations
+            cur_len = len(sample["c_pref"]['q'].split()) + len(sample["c_pref"]['a_w'].split()) + len(
+                sample["c_pref"]['a_l'].split())
             # If the sample includes a video, the length is positive; otherwise, it is negative
             cur_len = cur_len if ("video" in sample or "image" in sample) else -cur_len
             length_list.append(cur_len)
         return length_list
 
-    def process_image(self, image_file):
+    def process_image(self, image_file, overwrite_image_aspect_ratio=None):
         image_folder = self.data_args.image_folder
         processor = self.data_args.image_processor
         # print(f"\n\nInspecting the image path, folder = {image_folder}, image={image_file}\n\n")
@@ -1011,13 +1052,16 @@ class DPODataset(Dataset):
             raise exn
 
         image_size = image.size
-        if self.data_args.image_aspect_ratio == "highres":
+        image_aspect_ratio = self.data_args.image_aspect_ratio
+        if overwrite_image_aspect_ratio is not None:
+            image_aspect_ratio = overwrite_image_aspect_ratio
+        if image_aspect_ratio == "highres":
             image = process_highres_image(image, self.data_args.image_processor, self.data_args.image_grid_pinpoints)
-        elif self.data_args.image_aspect_ratio == "anyres" or "anyres" in self.data_args.image_aspect_ratio:
+        elif image_aspect_ratio == "anyres" or "anyres_max" in image_aspect_ratio:
             image = process_anyres_image(image, self.data_args.image_processor, self.data_args.image_grid_pinpoints)
-        elif self.data_args.image_aspect_ratio == "crop_split":
+        elif image_aspect_ratio == "crop_split":
             image = process_highres_image_crop_split(image, self.data_args)
-        elif self.data_args.image_aspect_ratio == "pad":
+        elif image_aspect_ratio == "pad":
 
             def expand2square(pil_img, background_color):
                 width, height = pil_img.size
@@ -1065,17 +1109,6 @@ class DPODataset(Dataset):
                 print(f"[Try other #{attempt_idx}] Failed to fetch sample {next_index}. Exception:", e)
                 pass
 
-        # still fail, most likely to be path issue or cloud disk issue, retry the same sample for longer
-        # for attempt_idx in range(num_final_retries):
-        #     try:
-        #         sample = self._get_item(i)
-        #         return sample
-        #     except Exception as e:
-        #         # sleep 1s in case it is a cloud disk issue
-        #         print(f"[Final try #{attempt_idx}] Failed to fetch sample {i}. Exception:", e)
-        #         time.sleep(1)
-
-        # Finally raise exception on failing.
         assert False, "Failed to fetch sample."
 
     def _get_item(self, i) -> Dict[str, torch.Tensor]:
@@ -1106,43 +1139,63 @@ class DPODataset(Dataset):
                 image = torch.from_numpy(video_info["feats"][:, 1:])
                 input_prompt = video_info["inputs"].replace("...", "")
                 # replace the default image token with multiple tokens
-                input_prompt = input_prompt.replace(DEFAULT_IMAGE_TOKEN, DEFAULT_IMAGE_TOKEN * self.data_args.video_token)
-                sources, query_prompt = preprocess_multimodal_movie(copy.deepcopy([e["conversations"] for e in sources]), self.data_args, input_prompt)
+                input_prompt = input_prompt.replace(DEFAULT_IMAGE_TOKEN,
+                                                    DEFAULT_IMAGE_TOKEN * self.data_args.video_token)
+                sources, query_prompt = preprocess_multimodal_movie(
+                    copy.deepcopy([e["conversations"] for e in sources]), self.data_args, input_prompt)
             else:  # using videoreader
-                if "shareVideoGPTV" not in video_file and "liangke" not in video_file:
-                    vr = VideoReader(video_file, ctx=cpu(0))
-                    total_frame_num = len(vr)
-                    avg_fps = round(vr.get_avg_fps() / self.data_args.video_fps)
-                    frame_idx = [i for i in range(0, total_frame_num, avg_fps)]
-                    if self.data_args.frames_upbound > 0:
-                        if len(frame_idx) > self.data_args.frames_upbound:
-                            uniform_sampled_frames = np.linspace(0, total_frame_num - 1, self.data_args.frames_upbound, dtype=int)
-                            frame_idx = uniform_sampled_frames.tolist()
-                    video = vr.get_batch(frame_idx).asnumpy()
-                    video = np.array(video)
-                else:
-                    if "liangke" in video_file:
-                        video_file = self.list_data_dict[i]["video"]
-                    frame_files = [os.path.join(video_file, f) for f in os.listdir(video_file) if os.path.isfile(os.path.join(video_file, f))]
-                    frame_files.sort()  # Ensure the frames are sorted if they are named sequentially
+                frame_files = [os.path.join(video_file, f) for f in os.listdir(video_file) if
+                               os.path.isfile(os.path.join(video_file, f))]
+                frame_files.sort()  # Ensure the frames are sorted if they are named sequentially
 
-                    # TODO: Hard CODE: Determine the indices for uniformly sampling 10 frames
-                    num_frames_to_sample = 10
+                # TODO: Hard CODE: Determine the indices for uniformly sampling 10 frames
+                total_frames = len(frame_files)
+                sampled_indices = np.linspace(0, total_frames - 1, min(total_frames, 10), dtype=int)
 
-                    total_frames = len(frame_files)
+                # Read and store the sampled frames
+                video = []
+                for idx in sampled_indices:
+                    frame_path = frame_files[idx]
+                    try:
+                        with Image.open(frame_path) as img:
+                            frame = img.convert("RGB")
+                            video.append(frame)
+                    except IOError:
+                        rank0_print(f"Failed to read frame at path: {frame_path}")
+                # if "shareVideoGPTV" not in video_file and "liangke" not in video_file:
+                #     vr = VideoReader(video_file, ctx=cpu(0))
+                #     total_frame_num = len(vr)
+                #     avg_fps = round(vr.get_avg_fps() / self.data_args.video_fps)
+                #     frame_idx = [i for i in range(0, total_frame_num, avg_fps)]
+                #     if self.data_args.frames_upbound > 0:
+                #         if len(frame_idx) > self.data_args.frames_upbound:
+                #             uniform_sampled_frames = np.linspace(0, total_frame_num - 1, self.data_args.frames_upbound, dtype=int)
+                #             frame_idx = uniform_sampled_frames.tolist()
+                #     video = vr.get_batch(frame_idx).asnumpy()
+                #     video = np.array(video)
+                # else:
+                #     if "liangke" in video_file:
+                #         video_file = self.list_data_dict[i]["video"]
+                #     frame_files = [os.path.join(video_file, f) for f in os.listdir(video_file) if os.path.isfile(os.path.join(video_file, f))]
+                #     frame_files.sort()  # Ensure the frames are sorted if they are named sequentially
 
-                    sampled_indices = np.linspace(0, total_frames - 1, num_frames_to_sample, dtype=int)
+                #     # TODO: Hard CODE: Determine the indices for uniformly sampling 10 frames
+                #     num_frames_to_sample = 10
 
-                    # Read and store the sampled frames
-                    video = []
-                    for idx in sampled_indices:
-                        frame_path = frame_files[idx]
-                        try:
-                            with Image.open(frame_path) as img:
-                                frame = img.convert("RGB")
-                                video.append(frame)
-                        except IOError:
-                            print(f"Failed to read frame at path: {frame_path}")
+                #     total_frames = len(frame_files)
+
+                #     sampled_indices = np.linspace(0, total_frames - 1, num_frames_to_sample, dtype=int)
+
+                #     # Read and store the sampled frames
+                #     video = []
+                #     for idx in sampled_indices:
+                #         frame_path = frame_files[idx]
+                #         try:
+                #             with Image.open(frame_path) as img:
+                #                 frame = img.convert("RGB")
+                #                 video.append(frame)
+                #         except IOError:
+                #             print(f"Failed to read frame at path: {frame_path}")
 
                 processor = self.data_args.image_processor
                 image = processor.preprocess(video, return_tensors="pt")["pixel_values"]
@@ -1161,6 +1214,14 @@ class DPODataset(Dataset):
             prompt = prompt.replace("<image>", "").strip()
             prompt = "<image>\n" + prompt
             data_dict["prompt"] = prompt
+        # TODO add multi conversations later
+        elif "c_pref" in data_dict:
+            prompt = data_dict["c_pref"]['q']
+            prompt = prompt.replace("<image>", "").strip()
+            prompt = "<image>\n" + prompt
+            data_dict["prompt"] = prompt
+            data_dict["chosen"] = data_dict["c_pref"]['a_w']
+            data_dict["rejected"] = data_dict["c_pref"]['a_l']
         else:
             prompt = None
 
@@ -1176,7 +1237,8 @@ class DPODataset(Dataset):
             # image does not exist in the data, but the model is multimodal
             crop_size = self.data_args.image_processor.crop_size
             data_dict["image"] = [
-                (torch.zeros(1, 3, crop_size["height"], crop_size["width"]), (crop_size["width"], crop_size["height"]), "text"),
+                (torch.zeros(1, 3, crop_size["height"], crop_size["width"]), (crop_size["width"], crop_size["height"]),
+                 "text"),
             ]
         # prompt exist in the data
         data_dict["has_image"] = has_image
@@ -1345,7 +1407,8 @@ def get_model(model_args, training_args, bnb_model_from_pretrained_args):
         if training_args.model_max_length is None:
             training_args.model_max_length = cfg_pretrained.max_position_embeddings * model_args.rope_scaling_factor
             overwrite_config["max_sequence_length"] = training_args.model_max_length
-        assert training_args.model_max_length == int(cfg_pretrained.max_position_embeddings * model_args.rope_scaling_factor), print(
+        assert training_args.model_max_length == int(
+            cfg_pretrained.max_position_embeddings * model_args.rope_scaling_factor), print(
             f"model_max_length: {training_args.model_max_length}, max_position_embeddings: {cfg_pretrained.max_position_embeddings}, rope_scaling_factor: {model_args.rope_scaling_factor}"
         )
         # overwrite_config["max_sequence_length"] = model_args.max_sequence_length
@@ -1476,7 +1539,9 @@ def get_model(model_args, training_args, bnb_model_from_pretrained_args):
             raise ValueError(f"Unknown model class {model_args}")
     else:
         model = transformers.LlamaForCausalLM.from_pretrained(
-            model_args.model_name_or_path, cache_dir=training_args.cache_dir, attn_implementation=training_args.attn_implementation, torch_dtype=(torch.bfloat16 if training_args.bf16 else None), **customized_kwargs
+            model_args.model_name_or_path, cache_dir=training_args.cache_dir,
+            attn_implementation=training_args.attn_implementation,
+            torch_dtype=(torch.bfloat16 if training_args.bf16 else None), **customized_kwargs
         )
     return model, ref_model
 
@@ -1527,7 +1592,8 @@ def train(attn_implementation=None):
     if training_args.bits in [4, 8]:
         from peft import prepare_model_for_kbit_training
 
-        model.config.torch_dtype = torch.float32 if training_args.fp16 else (torch.bfloat16 if training_args.bf16 else torch.float32)
+        model.config.torch_dtype = torch.float32 if training_args.fp16 else (
+            torch.bfloat16 if training_args.bf16 else torch.float32)
         model = prepare_model_for_kbit_training(model, use_gradient_checkpointing=training_args.gradient_checkpointing)
 
     if training_args.gradient_checkpointing:
@@ -1545,31 +1611,21 @@ def train(attn_implementation=None):
             if ref_model is not None:
                 ref_model.get_input_embeddings().register_forward_hook(make_inputs_require_grad)
 
-    if training_args.lora_enable:
-        from peft import LoraConfig, get_peft_model
-
-        lora_config = LoraConfig(
-            r=training_args.lora_r,
-            lora_alpha=training_args.lora_alpha,
-            target_modules=find_all_linear_names(model),
-            lora_dropout=training_args.lora_dropout,
-            bias=training_args.lora_bias,
-            task_type="CAUSAL_LM",
-        )
-        if training_args.bits == 16:
-            if training_args.bf16:
-                model.to(torch.bfloat16)
-            if training_args.fp16:
-                model.to(torch.float16)
-        rank0_print("Adding LoRA adapters...")
-        model = get_peft_model(model, lora_config)
-
     if "mpt" in model_args.model_name_or_path:
-        tokenizer = transformers.AutoTokenizer.from_pretrained(model_args.model_name_or_path, cache_dir=training_args.cache_dir, model_max_length=training_args.model_max_length, padding_side="right")
+        tokenizer = transformers.AutoTokenizer.from_pretrained(model_args.model_name_or_path,
+                                                               cache_dir=training_args.cache_dir,
+                                                               model_max_length=training_args.model_max_length,
+                                                               padding_side="right")
     elif "mistral" in model_args.model_name_or_path.lower() or "mixtral" in model_args.model_name_or_path.lower() or "zephyr" in model_args.model_name_or_path.lower():
-        tokenizer = transformers.AutoTokenizer.from_pretrained(model_args.model_name_or_path, cache_dir=training_args.cache_dir, model_max_length=training_args.model_max_length, padding_side="left")
+        tokenizer = transformers.AutoTokenizer.from_pretrained(model_args.model_name_or_path,
+                                                               cache_dir=training_args.cache_dir,
+                                                               model_max_length=training_args.model_max_length,
+                                                               padding_side="left")
     elif "qwen" in model_args.model_name_or_path.lower():
-        tokenizer = transformers.AutoTokenizer.from_pretrained(model_args.model_name_or_path, cache_dir=training_args.cache_dir, model_max_length=training_args.model_max_length, padding_side="right")
+        tokenizer = transformers.AutoTokenizer.from_pretrained(model_args.model_name_or_path,
+                                                               cache_dir=training_args.cache_dir,
+                                                               model_max_length=training_args.model_max_length,
+                                                               padding_side="right")
     else:  # for all other models
         tokenizer = transformers.AutoTokenizer.from_pretrained(
             model_args.model_name_or_path,
@@ -1608,22 +1664,24 @@ def train(attn_implementation=None):
 
         model.config.image_aspect_ratio = data_args.image_aspect_ratio
         if data_args.image_grid_pinpoints is not None:
-            # for input like "(1x1)...(3x3)", convert to [(1, 1), (2, 1), (3, 1), (1, 2), (2, 2), (3, 2), (1, 3), (2, 3), (3, 3)]
-            if "x" in data_args.image_grid_pinpoints and "..." in data_args.image_grid_pinpoints:
-                vis_encoder_size = data_args.image_processor.size[0]
+            if isinstance(data_args.image_grid_pinpoints, str) and "x" in data_args.image_grid_pinpoints:
+                try:
+                    patch_size = data_args.image_processor.size[0]
+                except Exception as e:
+                    patch_size = data_args.image_processor.size["shortest_edge"]
+
+                assert patch_size in [224, 336, 384, 448, 512], "patch_size should be in [224, 336, 384, 448, 512]"
+                # Use regex to extract the range from the input string
                 matches = re.findall(r"\((\d+)x(\d+)\)", data_args.image_grid_pinpoints)
                 range_start = tuple(map(int, matches[0]))
                 range_end = tuple(map(int, matches[-1]))
-                grid_pinpoints = [(i, j) for i in range(range_start[0], range_end[0] + 1) for j in range(range_start[1], range_end[1] + 1)]
-                grid_pinpoints = [[dim * vis_encoder_size for dim in pair] for pair in grid_pinpoints]
-                data_args.image_grid_pinpoints = grid_pinpoints
-            elif "x" in data_args.image_grid_pinpoints:
-                vis_encoder_size = data_args.image_processor.size[0]
-                assert vis_encoder_size in [224, 336, 384, 448, 512], "vis_encoder_size should be in [224, 336, 384, 448, 512]"
-                grid_pinpoints = data_args.image_grid_pinpoints.replace(" ", "").replace("x", ",")[1:-1].split("),(")
-                data_args.image_grid_pinpoints = [[int(x) * vis_encoder_size for x in item.split(",")] for item in grid_pinpoints]
-            else:
-                data_args.image_grid_pinpoints = ast.literal_eval(data_args.image_grid_pinpoints)  # for backward compatibility
+                # Generate a matrix of tuples from (range_start[0], range_start[1]) to (range_end[0], range_end[1])
+                grid_pinpoints = [(i, j) for i in range(range_start[0], range_end[0] + 1) for j in
+                                  range(range_start[1], range_end[1] + 1)]
+                # Multiply all elements by patch_size
+                data_args.image_grid_pinpoints = [[dim * patch_size for dim in pair] for pair in grid_pinpoints]
+            elif isinstance(data_args.image_grid_pinpoints, str):
+                data_args.image_grid_pinpoints = ast.literal_eval(data_args.image_grid_pinpoints)
         model.config.image_grid_pinpoints = data_args.image_grid_pinpoints
         model.config.image_crop_resolution = data_args.image_crop_resolution
         model.config.image_split_resolution = data_args.image_split_resolution
@@ -1676,18 +1734,66 @@ def train(attn_implementation=None):
                 for p in model.get_model().vision_resampler.parameters():
                     p.requires_grad = True
             if "mm_vision_tower" in tunable_parts:
-                for name, param in model.named_parameters():
-                    if "vision_tower" in name:
-                        param.requires_grad_(True)
-            if "mm_language_model" in tunable_parts:
-                for name, param in model.named_parameters():
-                    if "vision_tower" not in name and "mm_projector" not in name and "vision_resampler" not in name:
-                        param.requires_grad_(True)
+                if training_args.vit_lora_enable:
+                    rank0_print("Adding ViT Lora adapters......")
+                    config = LoraConfig(
+                        r=training_args.lora_r_vit,
+                        lora_alpha=training_args.lora_alpha_vit,
+                        target_modules=find_all_linear_names(vision_tower),
+                        lora_dropout=0.2,
+                        bias="none",
+                    )
+                    vision_tower = get_peft_model(vision_tower, config)
+                # Tune the entire ViT model
+                else:
+                    rank0_print("Train entire ViT model......")
+                    for name, param in model.named_parameters():
+                        if "vision_tower" in name:
+                            param.requires_grad_(True)
+                if model_args.pt_vitlora:
+                    checkpoint_name = model_args.pt_vitlora
 
+                    model_args.pt_vitlora = False  # So the trainer won't try loading its state)
+                    # The two files above have a different name depending on how they were saved, but are actually the same.
+                    if os.path.exists(checkpoint_name):
+                        rank0_print(f"Loading ViT-LoRA weights from {checkpoint_name}")
+                        adapters_weights = torch.load(checkpoint_name)
+
+                        set_peft_model_state_dict(vision_tower, adapters_weights)
+                        # vision_tower.load_state_dict(adapters_weights, strict=False)
+                    else:
+                        rank0_print(f"Checkpoint {checkpoint_name} not found")
+            if "mm_language_model" in tunable_parts:
+                if training_args.lora_enable:
+
+                    lora_config = LoraConfig(
+                        r=training_args.lora_r,
+                        lora_alpha=training_args.lora_alpha,
+                        target_modules=find_all_linear_names(model,
+                                                             ["mm_projector", "vision_tower", "vision_resampler"]),
+                        lora_dropout=training_args.lora_dropout,
+                        bias=training_args.lora_bias,
+                        task_type="CAUSAL_LM",
+                    )
+                    if training_args.bits == 16:
+                        if training_args.bf16:
+                            model.to(torch.bfloat16)
+                        if training_args.fp16:
+                            model.to(torch.float16)
+                    rank0_print("Adding LoRA adapters...")
+                    model = get_peft_model(model, lora_config)
+                else:
+                    for name, param in model.named_parameters():
+                        if "vision_tower" not in name and "mm_projector" not in name and "vision_resampler" not in name:
+                            param.requires_grad_(True)
         total_params = sum(p.ds_numel if hasattr(p, "ds_numel") else p.numel() for p in model.parameters())
-        trainable_params = sum(p.ds_numel if hasattr(p, "ds_numel") else p.numel() for p in model.parameters() if p.requires_grad)
-        rank0_print(f"Total parameters: ~{total_params/1e6:.2f} MB)")
-        rank0_print(f"Trainable parameters: ~{trainable_params/1e6:.2f} MB)")
+        trainable_params = sum(
+            p.ds_numel if hasattr(p, "ds_numel") else p.numel() for p in model.parameters() if p.requires_grad)
+        # for n,v in model.named_parameters():
+        #     if v.requires_grad:
+        #         rank0_print(n)
+        rank0_print(f"Total parameters: ~{total_params / 1e6:.2f} MB)")
+        rank0_print(f"Trainable parameters: ~{trainable_params / 1e6:.2f} MB)")
         if training_args.bits in [4, 8]:
             model.get_model().mm_projector.to(dtype=compute_dtype, device=training_args.device)
 
@@ -1701,7 +1807,8 @@ def train(attn_implementation=None):
         if ref_model is not None:
             ref_model.get_model().initialize_vision_modules(model_args=model_args, fsdp=training_args.fsdp)
             ref_vision_tower = ref_model.get_vision_tower()
-            ref_vision_tower.to(dtype=torch.bfloat16 if training_args.bf16 else torch.float16, device=training_args.device)
+            ref_vision_tower.to(dtype=torch.bfloat16 if training_args.bf16 else torch.float16,
+                                device=training_args.device)
             ref_model.config.image_aspect_ratio = data_args.image_aspect_ratio
             ref_model.config.image_grid_pinpoints = data_args.image_grid_pinpoints
             ref_model.config.image_crop_resolution = data_args.image_crop_resolution
@@ -1732,6 +1839,7 @@ def train(attn_implementation=None):
                         module = module.to(torch.bfloat16)
 
     train_dataset = make_dpo_data_module(tokenizer=tokenizer, data_args=data_args)
+    rank0_print("Finish loading dataset....")
     data_collator = DPODataCollator(
         tokenizer,
         label_pad_token_id=IGNORE_INDEX,
@@ -1774,6 +1882,10 @@ def train(attn_implementation=None):
             torch.save(non_lora_state_dict, os.path.join(training_args.output_dir, "non_lora_trainables.bin"))
     else:
         safe_save_model_for_hf_trainer(trainer=trainer, output_dir=training_args.output_dir)
+    if training_args.vit_lora_enable:
+        rank0_print("saving lora ckpt for vision tower")
+        v_tower_lora = get_peft_state_maybe_zero_3(vision_tower.named_parameters(), training_args.lora_bias)
+        vision_tower.save_pretrained(os.path.join(training_args.output_dir, 'Vit-lora'), state_dict=v_tower_lora)
 
     rank0_print(f"Model saved to {training_args.output_dir}")
 

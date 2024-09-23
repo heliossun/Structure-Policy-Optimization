@@ -1,17 +1,4 @@
-# DPO Authors: Rafael Rafailov, Archit Sharma, Eric Mitchell, Stefano Ermon, Christopher D. Manning, and Chelsea Finn 2023
-# Copyright 2023 The HuggingFace Team. All rights reserved.
-#
-# Licensed under the Apache License, Version 2.0 (the "License");
-# you may not use this file except in compliance with the License.
-# You may obtain a copy of the License at
-#
-#     http://www.apache.org/licenses/LICENSE-2.0
-#
-# Unless required by applicable law or agreed to in writing, software
-# distributed under the License is distributed on an "AS IS" BASIS,
-# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-# See the License for the specific language governing permissions and
-# limitations under the License.
+
 import inspect
 import random
 import warnings
@@ -64,9 +51,9 @@ if is_deepspeed_available():
 from transformers.integrations.deepspeed import is_deepspeed_zero3_enabled
 
 
-class DPOTrainer(Trainer):
+class SDOTrainer(Trainer):
     r"""
-    Initialize DPOTrainer.
+    Initialize SDOTrainer.
 
     Args:
         model (`transformers.PreTrainedModel`):
@@ -75,11 +62,11 @@ class DPOTrainer(Trainer):
             Hugging Face transformer model with a casual language modelling head. Used for implicit reward computation and loss. If no
             reference model is provided, the trainer will create a reference model with the same architecture as the model to be optimized.
         beta (`float`, defaults to 0.1):
-            The beta factor in DPO loss. Higher beta means less divergence from the initial policy. For the IPO loss, beta is the regularization parameter denoted by tau in the paper.
+            The beta factor in SDO loss. Higher beta means less divergence from the initial policy. For the IPO loss, beta is the regularization parameter denoted by tau in the paper.
         label_smoothing (`float`, defaults to 0):
-            The robust DPO label smoothing parameter from the [cDPO](https://ericmitchell.ai/cdpo.pdf) report that should be between 0 and 0.5.
+            The robust SDO label smoothing parameter from the [cDPO](https://ericmitchell.ai/cdpo.pdf) report that should be between 0 and 0.5.
         loss_type (`str`, defaults to `"sigmoid"`):
-            The type of DPO loss to use. Either `"sigmoid"` the default DPO loss,`"hinge"` loss from [SLiC](https://arxiv.org/abs/2305.10425) paper, `"ipo"` from [IPO](https://arxiv.org/abs/2310.12036) paper, or `"kto"` from the HALOs [report](https://github.com/ContextualAI/HALOs/blob/main/assets/report.pdf).
+            The type of SDO loss to use. Either `"sigmoid"` the default SDO loss,`"hinge"` loss from [SLiC](https://arxiv.org/abs/2305.10425) paper, `"ipo"` from [IPO](https://arxiv.org/abs/2310.12036) paper, or `"kto"` from the HALOs [report](https://github.com/ContextualAI/HALOs/blob/main/assets/report.pdf).
         args (`transformers.TrainingArguments`):
             The arguments to use for training.
         data_collator (`transformers.DataCollator`):
@@ -139,13 +126,13 @@ class DPOTrainer(Trainer):
             If True, we ignore the _provided_ reference model and implicitly use a reference model that assigns equal probability to all responses.
     """
 
-    _tag_names = ["trl", "dpo"]
+    _tag_names = ["trl", "sdo"]
 
     def __init__(
         self,
         model: Optional[Union[PreTrainedModel, nn.Module, str]] = None,
         ref_model: Optional[Union[PreTrainedModel, nn.Module, str]] = None,
-        dpo_alpha: float = 1.0,
+        sdo_alpha: float = 1.0,
         beta: float = 0.1,
         gamma: float = 0.1,
         label_smoothing: float = 0,
@@ -182,19 +169,19 @@ class DPOTrainer(Trainer):
         if model_init_kwargs is None:
             model_init_kwargs = {}
         elif not isinstance(model, str):
-            raise ValueError("You passed model_kwargs to the DPOTrainer. But your model is already instantiated.")
+            raise ValueError("You passed model_kwargs to the SDOTrainer. But your model is already instantiated.")
 
         if ref_model_init_kwargs is None:
             ref_model_init_kwargs = {}
         elif not isinstance(ref_model, str):
-            raise ValueError("You passed ref_model_kwargs to the DPOTrainer. But your ref_model is already instantiated.")
+            raise ValueError("You passed ref_model_kwargs to the SDOTrainer. But your ref_model is already instantiated.")
 
         if isinstance(model, str):
-            warnings.warn("You passed a model_id to the DPOTrainer. This will automatically create an " "`AutoModelForCausalLM` or a `PeftModel` (if you passed a `peft_config`) for you.")
+            warnings.warn("You passed a model_id to the SDOTrainer. This will automatically create an " "`AutoModelForCausalLM` or a `PeftModel` (if you passed a `peft_config`) for you.")
             model = AutoModelForCausalLM.from_pretrained(model, **model_init_kwargs)
 
         if isinstance(ref_model, str):
-            warnings.warn("You passed a ref model_id to the DPOTrainer. This will automatically create an " "`AutoModelForCausalLM`")
+            warnings.warn("You passed a ref model_id to the SDOTrainer. This will automatically create an " "`AutoModelForCausalLM`")
             ref_model = AutoModelForCausalLM.from_pretrained(ref_model, **ref_model_init_kwargs)
 
         # Initialize this variable to False. This helps tracking the case when `peft_module_casting_to_bf16`
@@ -228,23 +215,23 @@ class DPOTrainer(Trainer):
                 self.ref_model = create_reference_model(model)
 
         if tokenizer is None:
-            raise ValueError("tokenizer must be specified to tokenize a DPO dataset.")
+            raise ValueError("tokenizer must be specified to tokenize a SDO dataset.")
         if max_length is None:
             warnings.warn(
-                "`max_length` is not set in the DPOTrainer's init" " it will default to `512` by default, but you should do it yourself in the future.",
+                "`max_length` is not set in the SDOTrainer's init" " it will default to `512` by default, but you should do it yourself in the future.",
                 UserWarning,
             )
             max_length = 512
         if max_prompt_length is None:
             warnings.warn(
-                "`max_prompt_length` is not set in the DPOTrainer's init" " it will default to `128` by default, but you should do it yourself in the future.",
+                "`max_prompt_length` is not set in the SDOTrainer's init" " it will default to `128` by default, but you should do it yourself in the future.",
                 UserWarning,
             )
             max_prompt_length = 128
 
         if max_target_length is None and self.is_encoder_decoder:
             warnings.warn(
-                "When using an encoder decoder architecture, you should set `max_target_length` in the DPOTrainer's init" " it will default to `128` by default, but you should do it yourself in the future.",
+                "When using an encoder decoder architecture, you should set `max_target_length` in the SDOTrainer's init" " it will default to `128` by default, but you should do it yourself in the future.",
                 UserWarning,
             )
             max_target_length = 128
@@ -264,9 +251,9 @@ class DPOTrainer(Trainer):
                     UserWarning,
                 )
 
-            self.use_dpo_data_collator = True
+            self.use_sdo_data_collator = True
         else:
-            self.use_dpo_data_collator = False
+            self.use_sdo_data_collator = False
 
         if disable_dropout:
             disable_dropout_in_model(model)
@@ -291,7 +278,7 @@ class DPOTrainer(Trainer):
         if loss_type in ["hinge", "ipo", "kto_pair"] and label_smoothing > 0:
             warnings.warn("You are using a loss type that does not support label smoothing. Ignoring label_smoothing parameter.")
 
-        self.dpo_alpha = dpo_alpha
+        self.sdo_alpha = sdo_alpha
         self.beta = beta
         self.gamma = gamma
         self.label_smoothing = label_smoothing
@@ -503,7 +490,7 @@ class DPOTrainer(Trainer):
         )
 
     def tokenize_row(self, feature, model: Optional[Union[PreTrainedModel, nn.Module]] = None) -> Dict:
-        """Tokenize a single row from a DPO specific dataset.
+        """Tokenize a single row from a SDO specific dataset.
 
         At this stage, we don't convert to PyTorch tensors yet; we just handle the truncation
         in case the prompt + chosen or prompt + rejected responses is/are too long. First
@@ -636,7 +623,7 @@ class DPOTrainer(Trainer):
                 self.model.set_adapter(self.model_adapter_name or "default")
 
     def compute_reference_log_probs(self, padded_batch: Dict) -> Dict:
-        """Computes log probabilities of the reference model for a single padded batch of a DPO specific dataset."""
+        """Computes log probabilities of the reference model for a single padded batch of a SDO specific dataset."""
         compte_ref_context_manager = torch.cuda.amp.autocast if self._peft_has_been_casted_to_bf16 else nullcontext
 
         # compute reference logps
@@ -680,17 +667,24 @@ class DPOTrainer(Trainer):
             A dictionary containing the concatenated inputs under the key 'concatenated_input_ids'.
         """
         concatenated_batch = {}
-
+        sampler_batch={}
         if is_encoder_decoder:
             max_length = max(batch["chosen_labels"].shape[1], batch["rejected_labels"].shape[1])
         else:
-            max_length = max(batch["chosen_input_ids"].shape[1], batch["rejected_input_ids"].shape[1])
-        # print("chosen input: ++++++",batch['chosen_input_ids'])
-        # print("chosen label: +++",batch['chosen_labels'])
-        # print("reject input: ------", batch['rejected_input_ids'])
-        # print("reject label: ---", batch['rejected_labels'])
-        for k in batch:
+            max_length = max( batch["chosen_input_ids"].shape[1], batch["rejected_input_ids"].shape[1])
 
+        for k in batch:
+            # import pdb; pdb.set_trace()
+            if k.startswith("sampler") and isinstance(batch[k], torch.Tensor):
+                if "labels" in k or is_encoder_decoder:
+                    pad_value = label_pad_token_id
+                elif k.endswith("_input_ids"):
+                    pad_value = padding_value
+                elif k.endswith("_attention_mask"):
+                    pad_value = 0
+                concatenated_key = k.replace("sampler", "concatenated")
+                sampler_batch[concatenated_key] = pad_to_length(batch[k], max_length, pad_value=pad_value)
+        for k in batch:
             # import pdb; pdb.set_trace()
             if k.startswith("chosen") and isinstance(batch[k], torch.Tensor):
                 if "labels" in k or is_encoder_decoder:
@@ -700,7 +694,12 @@ class DPOTrainer(Trainer):
                 elif k.endswith("_attention_mask"):
                     pad_value = 0
                 concatenated_key = k.replace("chosen", "concatenated")
-                concatenated_batch[concatenated_key] = pad_to_length(batch[k], max_length, pad_value=pad_value)
+                concatenated_batch[concatenated_key] = torch.cat(
+                    (
+                        sampler_batch[concatenated_key],
+                        pad_to_length(batch[k], max_length, pad_value=pad_value),
+                    ),dim=-1,
+                )
         for k in batch:
             if k.startswith("rejected") and isinstance(batch[k], torch.Tensor):
                 if "labels" in k or is_encoder_decoder:
@@ -713,7 +712,7 @@ class DPOTrainer(Trainer):
                 concatenated_batch[concatenated_key] = torch.cat(
                     (
                         concatenated_batch[concatenated_key],
-                        pad_to_length(batch[k], max_length, pad_value=pad_value),
+                        torch.cat((sampler_batch[concatenated_key],pad_to_length(batch[k], max_length, pad_value=pad_value)),dim=-1),
                     ),
                     dim=0,
                 ).to(device=device)
@@ -721,25 +720,24 @@ class DPOTrainer(Trainer):
         if is_encoder_decoder:
             concatenated_batch["concatenated_input_ids"] = batch["prompt_input_ids"].repeat(2, 1).to(device=device)
             concatenated_batch["concatenated_attention_mask"] = batch["prompt_attention_mask"].repeat(2, 1).to(device=device)
-        # import pdb; pdb.set_trace()
-        # repeated_list = [
-        #     batch['images'][0] * 2,
-        #     batch['images'][1] * 2
-        # ]
 
         concatenated_batch["concatenated_images"] = batch["images"] * 2
         concatenated_batch["image_sizes"] = batch["image_sizes"] * 2
         concatenated_batch["modalities"] = batch["modalities"] * 2
         return concatenated_batch
 
-    def dpo_loss(
+    def sdo_loss(
         self,
-        policy_chosen_logps: torch.FloatTensor,
-        policy_rejected_logps: torch.FloatTensor,
-        reference_chosen_logps: torch.FloatTensor,
-        reference_rejected_logps: torch.FloatTensor,
+        policy_chosen_qs_logps: torch.FloatTensor, 
+        policy_rejected_qs_logps: torch.FloatTensor, 
+        policy_chosen_asr_logps: torch.FloatTensor, 
+        policy_rejected_asr_logps: torch.FloatTensor,
+        reference_chosen_qs_logps: torch.FloatTensor, 
+        reference_rejected_qs_logps: torch.FloatTensor, 
+        reference_chosen_asr_logps: torch.FloatTensor, 
+        reference_rejected_asr_logps: torch.FloatTensor,
     ) -> Tuple[torch.FloatTensor, torch.FloatTensor, torch.FloatTensor]:
-        """Compute the DPO loss for a batch of policy and reference model log probabilities.
+        """Compute the SDO loss for a batch of policy and reference model log probabilities.
 
         Args:
             policy_chosen_logps: Log probabilities of the policy model for the chosen responses. Shape: (batch_size,)
@@ -749,53 +747,46 @@ class DPOTrainer(Trainer):
 
         Returns:
             A tuple of three tensors: (losses, chosen_rewards, rejected_rewards).
-            The losses tensor contains the DPO loss for each example in the batch.
+            The losses tensor contains the SDO loss for each example in the batch.
             The chosen_rewards and rejected_rewards tensors contain the rewards for the chosen and rejected responses, respectively.
         """
-        pi_logratios = policy_chosen_logps - policy_rejected_logps
-        if self.reference_free:
-            ref_logratios = torch.tensor([0], dtype=pi_logratios.dtype, device=pi_logratios.device)
-        else:
-            ref_logratios = reference_chosen_logps - reference_rejected_logps
+        
+        def compute_loss(policy_chosen_logps,reference_chosen_logps,policy_rejected_logps,reference_rejected_logps):
+            pi_logratios = policy_chosen_logps - policy_rejected_logps
+            if self.reference_free:
+                ref_logratios = torch.tensor([0], dtype=pi_logratios.dtype, device=pi_logratios.device)
+            else:
+                ref_logratios = reference_chosen_logps - reference_rejected_logps
 
-        pi_logratios = pi_logratios.to(self.accelerator.device)
-        ref_logratios = ref_logratios.to(self.accelerator.device)
-        logits = pi_logratios - ref_logratios
-        # print(f"pi log ratios: {pi_logratios}")
-        # print(f"ref log ratios: {ref_logratios}")
-        # print(f"logits: {logits}")
-        # The beta is a temperature parameter for the DPO loss, typically something in the range of 0.1 to 0.5.
-        # We ignore the reference model as beta -> 0. The label_smoothing parameter encodes our uncertainty about the labels and
-        # calculates a conservative DPO loss.
-        if self.loss_type == "sigmoid":
-            losses = -F.logsigmoid(self.beta * logits) * (1 - self.label_smoothing) - F.logsigmoid(-self.beta * logits) * self.label_smoothing
-        elif self.loss_type == "hinge":
-            losses = torch.relu(1 - self.beta * logits)
-        elif self.loss_type == "ipo":
-            # eqn (17) of the paper where beta is the regularization parameter for the IPO loss, denoted by tau in the paper.
-            losses = (logits - 1 / (2 * self.beta)) ** 2
-        elif self.loss_type == "kto_pair":
-            # eqn (7) of the HALOs paper
-            chosen_KL = (policy_chosen_logps - reference_chosen_logps).mean().clamp(min=0)
-            rejected_KL = (policy_rejected_logps - reference_rejected_logps).mean().clamp(min=0)
-
-            chosen_logratios = policy_chosen_logps - reference_chosen_logps
-            rejected_logratios = policy_rejected_logps - reference_rejected_logps
-            # As described in the KTO report, the KL term for chosen (rejected) is estimated using the rejected (chosen) half.
-            losses = torch.cat(
-                (
-                    1 - F.sigmoid(self.beta * (chosen_logratios - rejected_KL)),
-                    1 - F.sigmoid(self.beta * (chosen_KL - rejected_logratios)),
-                ),
-                0,
-            )
-        else:
-            raise ValueError(f"Unknown loss type: {self.loss_type}. Should be one of ['sigmoid', 'hinge', 'ipo', 'kto_pair']")
-
-        chosen_rewards = self.beta * (policy_chosen_logps.to(self.accelerator.device) - reference_chosen_logps.to(self.accelerator.device)).detach()
-        rejected_rewards = self.beta * (policy_rejected_logps.to(self.accelerator.device) - reference_rejected_logps.to(self.accelerator.device)).detach()
-
-        return losses, chosen_rewards, rejected_rewards
+            pi_logratios = pi_logratios.to(self.accelerator.device)
+            ref_logratios = ref_logratios.to(self.accelerator.device)
+            logits = pi_logratios - ref_logratios
+            if self.loss_type == "sigmoid":
+                losses = -F.logsigmoid(self.beta * logits) * (1 - self.label_smoothing) - F.logsigmoid(-self.beta * logits) * self.label_smoothing
+            elif self.loss_type == "hinge":
+                losses = torch.relu(1 - self.beta * logits)
+            elif self.loss_type == "ipo":
+                losses = (logits - 1 / (2 * self.beta)) ** 2
+            elif self.loss_type == "kto_pair":
+                chosen_KL = (policy_chosen_logps - reference_chosen_logps).mean().clamp(min=0)
+                rejected_KL = (policy_rejected_logps - reference_rejected_logps).mean().clamp(min=0)
+                chosen_logratios = policy_chosen_logps - reference_chosen_logps
+                rejected_logratios = policy_rejected_logps - reference_rejected_logps
+                losses = torch.cat(
+                    (
+                        1 - F.sigmoid(self.beta * (chosen_logratios - rejected_KL)),
+                        1 - F.sigmoid(self.beta * (chosen_KL - rejected_logratios)),
+                    ),
+                    0,
+                )
+            else:
+                raise ValueError(f"Unknown loss type: {self.loss_type}. Should be one of ['sigmoid', 'hinge', 'ipo', 'kto_pair']")
+            chosen_rewards = self.beta * (policy_chosen_logps.to(self.accelerator.device) - reference_chosen_logps.to(self.accelerator.device)).detach()
+            rejected_rewards = self.beta * (policy_rejected_logps.to(self.accelerator.device) - reference_rejected_logps.to(self.accelerator.device)).detach()
+            return losses, chosen_rewards, rejected_rewards
+        qs_losses, qs_chosen_rewards, qs_rejected_rewards = compute_loss(policy_chosen_qs_logps,reference_chosen_qs_logps,policy_rejected_qs_logps,reference_rejected_qs_logps)
+        asr_losses, asr_chosen_rewards, asr_rejected_rewards = compute_loss(policy_chosen_asr_logps,reference_chosen_asr_logps,policy_rejected_asr_logps,reference_rejected_asr_logps)
+        return qs_losses, asr_losses, asr_chosen_rewards, qs_chosen_rewards, qs_rejected_rewards, asr_rejected_rewards
 
     @staticmethod
     def get_batch_logps(
@@ -817,23 +808,47 @@ class DPOTrainer(Trainer):
         Returns:
             A tensor of shape (batch_size,) containing the average/sum log probabilities of the given labels under the given logits.
         """
+        assistant_idx = (labels == 151644).nonzero(as_tuple=False)
         if logits.shape[:-1] != labels.shape:
             raise ValueError("Logits (batch and sequence length dim) and labels must have the same shape.")
-
         if not is_encoder_decoder:
             labels = labels[:, 1:].clone()
             logits = logits[:, :-1, :]
         loss_mask = labels != label_pad_token_id
-
         # dummy token; we'll ignore the losses on these tokens later
         labels[labels == label_pad_token_id] = 0
 
         per_token_logps = torch.gather(logits.log_softmax(-1), dim=2, index=labels.unsqueeze(2)).squeeze(2)
+        cur_batch=0
+        split_idxs=[]
+        # saving the index of the last <imstart> token before <Assistant>
+        for i,idx in enumerate(assistant_idx):
+            # dix: (batch, index), since we are concating the accept and reject conversation, so the total batch number is 2*train_batch
+            if idx[0]!=cur_batch:
+                split_idxs.append(assistant_idx[i-1][1]) # there are multiple <assistant> in one conversation, we only save the last one in each cov
+                cur_batch=idx[0]
+            if i==len(assistant_idx)-1:
+                split_idxs.append(idx[1])
 
-        if average_log_prob:
-            return (per_token_logps * loss_mask).sum(-1) / loss_mask.sum(-1)
-        else:
-            return (per_token_logps * loss_mask).sum(-1)
+        per_token_logps *= loss_mask
+
+        question_logps=[]
+        answer_logps=[]
+        # split the logps of each conversation tokens into two parts: System+sampler+sq, a
+        for i,logps in enumerate(per_token_logps):
+            ques_logps=logps[:split_idxs[i]]
+            ques_mask=loss_mask[i][:split_idxs[i]]
+            ans_logps = logps[split_idxs[i]:]
+            ans_mask = loss_mask[i][split_idxs[i]:]
+            if average_log_prob:
+                question_logps.append((ques_logps.sum(-1) / ques_mask.sum(-1)).unsqueeze(0))
+                answer_logps.append((ans_logps.sum(-1) / ans_mask.sum(-1)).unsqueeze(0))
+            else:
+                question_logps.append((ques_logps.sum(-1)).unsqueeze(0))
+                answer_logps.append((ans_logps.sum(-1)).unsqueeze(0))
+        question_logps=torch.cat(question_logps,dim=0)
+        answer_logps = torch.cat(answer_logps,dim=0)
+        return question_logps, answer_logps
 
     def get_sft_loss(self, logits, labels):
         # Shift so that tokens < n predict n
@@ -847,11 +862,39 @@ class DPOTrainer(Trainer):
         shift_labels = shift_labels.to(shift_logits.device)
         loss = loss_fct(shift_logits, shift_labels)
         return loss
-
+    # def split_all(self, all_logits, all_labels, batch_ids):
+    #
+    #     # list of index of assistant id (77091) TODO update hard coding assistant id
+    #     answer_logits=[]
+    #     other_logits=[]
+    #     answer_labels=[]
+    #     other_labels=[]
+    #     first_exists=[]
+    #     for i, logits in enumerate(all_logits):
+    #         assidx = assistant_idx[i] # current assistant id index in input ids
+    #         cur_labels=all_labels[i]
+    #         if assidx[0] not in first_exists: # ignore the assistant in sampler qa,
+    #             answer_logits.append(logits[assidx[1]-1:].unsqueeze(0))
+    #             other_logits.append(logits[:assidx[1]-1].unsqueeze(0))
+    #             answer_labels.append(cur_labels[assidx[1] - 1:].unsqueeze(0))
+    #             other_labels.append(cur_labels[:assidx[1] - 1].unsqueeze(0))
+    #         else:
+    #             first_exists.append(assidx[0])
+    #         print("answer label shape", cur_labels.shape)
+    #     answer_labels = torch.cat(answer_labels, dim=0)
+    #     other_labels = torch.cat(other_labels,dim=0)
+    #     answer_logits = torch.cat(answer_logits, dim=0)
+    #     other_logits = torch.cat(other_logits, dim=0)
+    #     print(answer_labels.shape, other_labels.shape, answer_logits.shape,other_logits.shape)
+    #     return answer_logits, other_logits, answer_labels, other_labels
     def concatenated_forward(self, model: nn.Module, batch: Dict[str, Union[List, torch.LongTensor]]) -> Tuple[torch.FloatTensor, torch.FloatTensor, torch.FloatTensor, torch.FloatTensor]:
         """Run the given model on the given batch of inputs, concatenating the chosen and rejected inputs together.
-
+        concatenated inputs: system + sampler QA + chosen/rejected QA
         We do this to avoid doing two forward passes, because it's faster for FSDP.
+        TODO
+        Return:
+            Questions: chosen_prompt_logps, rejected_prompt_logps, chosen_prompt_logits, rejected_prompt_logits, chosen_prompt_labels, rejected_prompt_labels
+            Answers: chosen_logps, rejected_logps, chosen_logits, rejected_logits, chosen_labels, rejected_labels
         """
         # import pdb; pdb.set_trace()
         concatenated_batch = self.concatenated_inputs(
@@ -862,6 +905,7 @@ class DPOTrainer(Trainer):
             device=self.accelerator.device,
         )
         len_chosen = batch["chosen_labels"].shape[0]
+
         # import pdb; pdb.set_trace()
         all_logits, new_labels = model(
             concatenated_batch["concatenated_input_ids"],
@@ -873,8 +917,11 @@ class DPOTrainer(Trainer):
             use_cache=False,
             dpo_forward=True,
         )
+        batch_ids = concatenated_batch["concatenated_input_ids"]
+
+
         all_logits = all_logits.to(torch.float32)
-        all_logps = self.get_batch_logps(
+        question_logps, answer_logps = self.get_batch_logps(
             all_logits,
             new_labels,
             average_log_prob=self.loss_type == "ipo",
@@ -882,15 +929,41 @@ class DPOTrainer(Trainer):
             label_pad_token_id=self.label_pad_token_id,
         )
 
-        chosen_logps = all_logps[:len_chosen]
-        rejected_logps = all_logps[len_chosen:]
+        chosen_qs_logps = question_logps[:len_chosen]
+        rejected_qs_logps = question_logps[len_chosen:]
+
+        chosen_asr_logps = answer_logps[:len_chosen]
+        rejected_asr_logps = answer_logps[len_chosen:]
 
         chosen_logits = all_logits[:len_chosen]
         rejected_logits = all_logits[len_chosen:]
         chosen_labels = new_labels[:len_chosen]
         rejected_labels = new_labels[len_chosen:]
+        # question_logps = self.get_batch_logps(
+        #     other_logits,
+        #     other_labels,
+        #     average_log_prob=self.loss_type == "ipo",
+        #     is_encoder_decoder=self.is_encoder_decoder,
+        #     label_pad_token_id=self.label_pad_token_id,
+        # )
 
-        return (chosen_logps, rejected_logps, chosen_logits, rejected_logits, chosen_labels, rejected_labels)
+        # chosen_logps = answer_logps[:len_chosen]
+        # rejected_logps = answer_logps[len_chosen:]
+        # chosen_logits = answer_logits[:len_chosen]
+        # rejected_logits = answer_logits[len_chosen:]
+        # chosen_labels = answer_labels[:len_chosen]
+        # rejected_labels = answer_labels[len_chosen:]
+        # chosen_prompt_logps=question_logps[:len_chosen]
+        # rejected_prompt_logps=question_logps[len_chosen:]
+        # chosen_prompt_logits=other_logits[:len_chosen]
+        # rejected_prompt_logits=other_logits[len_chosen:]
+        # chosen_prompt_labels=other_labels[:len_chosen]
+        # rejected_prompt_labels=other_labels[len_chosen:]
+        # print("chosen logits: ", chosen_logits, "chosen label: ",chosen_labels)
+        # print("reject logits: ", rejected_logits, "reject labels: ", rejected_labels)
+        # print("chosen prompt logits: ", chosen_prompt_logits, "chosen prompt label: ", chosen_prompt_labels)
+        # print("reject prompt logits: ", rejected_prompt_logits, "reject prompt labels: ", rejected_prompt_labels)
+        return (chosen_qs_logps, rejected_qs_logps, chosen_asr_logps, rejected_asr_logps, chosen_logits, rejected_logits, chosen_labels, rejected_labels)
 
     def get_batch_loss_metrics(
         self,
@@ -898,19 +971,21 @@ class DPOTrainer(Trainer):
         batch: Dict[str, Union[List, torch.LongTensor]],
         train_eval: Literal["train", "eval"] = "train",
     ):
-        """Compute the DPO loss and other metrics for the given batch of inputs for train or test.
+        """Compute the SDO loss and other metrics for the given batch of inputs for train or test.
         CHANGE: 1. add sft loss
         2. all gather metrics
         """
         metrics = {}
-
+        
         (
-            policy_chosen_logps,
-            policy_rejected_logps,
-            policy_chosen_logits,
-            policy_rejected_logits,
-            chosen_labels,
-            rejected_labels,
+            policy_chosen_qs_logps, 
+            policy_rejected_qs_logps, 
+            policy_chosen_asr_logps, 
+            policy_rejected_asr_logps, 
+            policy_chosen_logits, 
+            policy_rejected_logits, 
+            chosen_labels, 
+            rejected_labels
         ) = self.concatenated_forward(model, batch)
 
         # if reference_chosen_logps and reference_rejected_logps in batch use them, otherwise use the reference model
@@ -922,35 +997,46 @@ class DPOTrainer(Trainer):
                 if self.ref_model is None:
                     with self.null_ref_context():
                         (
-                            reference_chosen_logps,
-                            reference_rejected_logps,
+                            reference_chosen_qs_logps, 
+                            reference_rejected_qs_logps, 
+                            reference_chosen_asr_logps, 
+                            reference_rejected_asr_logps,
                         ) = self.concatenated_forward(
                             self.model, batch
-                        )[:2]
+                        )[:4]
                 else:
                     (
-                        reference_chosen_logps,
-                        reference_rejected_logps,
+                        reference_chosen_qs_logps, 
+                        reference_rejected_qs_logps, 
+                        reference_chosen_asr_logps, 
+                        reference_rejected_asr_logps,
                     ) = self.concatenated_forward(
                         self.ref_model, batch
-                    )[:2]
+                    )[:4]
 
-        unscaled_dpo_losses, chosen_rewards, rejected_rewards = self.dpo_loss(
-            policy_chosen_logps,
-            policy_rejected_logps,
-            reference_chosen_logps,
-            reference_rejected_logps,
+        qs_losses, asr_losses, asr_chosen_rewards, qs_chosen_rewards, qs_rejected_rewards, asr_rejected_rewards = self.sdo_loss(
+            policy_chosen_qs_logps, 
+            policy_rejected_qs_logps, 
+            policy_chosen_asr_logps, 
+            policy_rejected_asr_logps,
+            reference_chosen_qs_logps, 
+            reference_rejected_qs_logps, 
+            reference_chosen_asr_logps, 
+            reference_rejected_asr_logps,
         )
-        unscaled_dpo_losses = unscaled_dpo_losses.mean()
-        dpo_losses = unscaled_dpo_losses * self.dpo_alpha
+        qs_losses = qs_losses.mean()
+        sdo_qs_losses = qs_losses * self.sdo_alpha
+        asr_losses = asr_losses.mean()
+        sdo_asr_losses = asr_losses * self.sdo_alpha
         unscaled_sft_loss = self.get_sft_loss(policy_chosen_logits, chosen_labels)
         sft_loss = unscaled_sft_loss * self.gamma
 
         # print(sft_loss.shape, dpo_losses.shape)
-        losses = dpo_losses + sft_loss
+        losses = sdo_qs_losses+sdo_asr_losses + sft_loss
         # losses = sft_loss # sft only
         # losses = dpo_losses # dpo only
-        reward_accuracies = (chosen_rewards > rejected_rewards).float()
+        reward_accuracies_qs = (qs_chosen_rewards > qs_rejected_rewards).float()
+        reward_accuracies_asr = (asr_chosen_rewards > asr_rejected_rewards).float()
 
         def all_gather_tensor(tensor):
             if torch.distributed.is_available() and torch.distributed.is_initialized():
@@ -963,31 +1049,38 @@ class DPOTrainer(Trainer):
             return tensor
 
         # gather chosen_rewards across devices
-        chosen_rewards = all_gather_tensor(chosen_rewards)
-        rejected_rewards = all_gather_tensor(rejected_rewards)
-        reward_accuracies = all_gather_tensor(reward_accuracies)
-        policy_chosen_logps = all_gather_tensor(policy_chosen_logps)
-        policy_rejected_logps = all_gather_tensor(policy_rejected_logps)
-        reference_chosen_logps = all_gather_tensor(reference_chosen_logps)
-        reference_rejected_logps = all_gather_tensor(reference_rejected_logps)
+        qs_chosen_rewards = all_gather_tensor(qs_chosen_rewards)
+        qs_rejected_rewards = all_gather_tensor(qs_rejected_rewards)
+        asr_chosen_rewards = all_gather_tensor(asr_chosen_rewards)
+        asr_rejected_rewards = all_gather_tensor(asr_rejected_rewards)
+        reward_accuracies_qs = all_gather_tensor(reward_accuracies_qs)
+        reward_accuracies_asr = all_gather_tensor(reward_accuracies_asr)
+        #policy_chosen_logps = all_gather_tensor(policy_chosen_logps)
+        #policy_rejected_logps = all_gather_tensor(policy_rejected_logps)
+        #reference_chosen_logps = all_gather_tensor(reference_chosen_logps)
+        #reference_rejected_logps = all_gather_tensor(reference_rejected_logps)
 
         prefix = "eval_" if train_eval == "eval" else ""
-        metrics[f"{prefix}losses/dpo"] = unscaled_dpo_losses.cpu()
+        metrics[f"{prefix}losses/sdo"] = sdo_qs_losses.cpu()+sdo_asr_losses.cpu()
         metrics[f"{prefix}losses/sft"] = unscaled_sft_loss.cpu()
         metrics[f"{prefix}losses/total"] = losses.cpu()
-        metrics[f"{prefix}rewards/chosen"] = chosen_rewards.mean().cpu()
-        metrics[f"{prefix}rewards/rejected"] = rejected_rewards.mean().cpu()
-        metrics[f"{prefix}rewards/accuracies"] = reward_accuracies.mean().cpu()
-        metrics[f"{prefix}rewards/margins"] = (chosen_rewards - rejected_rewards).mean().cpu()
+        metrics[f"{prefix}rewards-question/chosen"] = qs_chosen_rewards.mean().cpu()
+        metrics[f"{prefix}rewards-question/rejected"] = qs_rejected_rewards.mean().cpu()
+        metrics[f"{prefix}rewards-question/accuracies"] = reward_accuracies_qs.mean().cpu()
+        metrics[f"{prefix}rewards-question/margins"] = (qs_chosen_rewards - qs_rejected_rewards).mean().cpu()
+        metrics[f"{prefix}rewards-answer/chosen"] = asr_chosen_rewards.mean().cpu()
+        metrics[f"{prefix}rewards-answer/rejected"] = asr_rejected_rewards.mean().cpu()
+        metrics[f"{prefix}rewards-answer/accuracies"] = reward_accuracies_asr.mean().cpu()
+        metrics[f"{prefix}rewards-answer/margins"] = (asr_chosen_rewards - asr_rejected_rewards).mean().cpu()
         # policy logps
-        metrics[f"{prefix}logps/rejected"] = policy_rejected_logps.detach().mean().cpu()
-        metrics[f"{prefix}logps/chosen"] = policy_chosen_logps.detach().mean().cpu()
+        #metrics[f"{prefix}logps/rejected"] = policy_rejected_logps.detach().mean().cpu()
+        #metrics[f"{prefix}logps/chosen"] = policy_chosen_logps.detach().mean().cpu()
         # policy logits (exclude image tokens)
         # metrics[f"{prefix}logits/rejected"] =policy_rejected_logits
         # metrics[f"{prefix}logits/chosen"] = policy_chosen_logits
         # reference logps
-        metrics[f"{prefix}ref_logps/rejected"] = reference_rejected_logps.mean().cpu()
-        metrics[f"{prefix}ref_logps/chosen"] = reference_chosen_logps.mean().cpu()
+        #metrics[f"{prefix}ref_logps/rejected"] = reference_rejected_logps.mean().cpu()
+        #metrics[f"{prefix}ref_logps/chosen"] = reference_chosen_logps.mean().cpu()
 
         # metrics all pick .4 digits
         # for k in metrics:
@@ -1001,7 +1094,7 @@ class DPOTrainer(Trainer):
         inputs: Dict[str, Union[torch.Tensor, Any]],
         return_outputs=False,
     ) -> Union[torch.Tensor, Tuple[torch.Tensor, Dict[str, torch.Tensor]]]:
-        if not self.use_dpo_data_collator:
+        if not self.use_sdo_data_collator:
             warnings.warn(
                 "compute_loss is only implemented for DPODataCollatorWithPadding, and you passed a datacollator that is different than "
                 "DPODataCollatorWithPadding - you might see unexpected behavior. Alternatively, you can implement your own prediction_step method if you are using a custom data collator"
@@ -1072,7 +1165,7 @@ class DPOTrainer(Trainer):
         prediction_loss_only: bool,
         ignore_keys: Optional[List[str]] = None,
     ):
-        if not self.use_dpo_data_collator:
+        if not self.use_sdo_data_collator:
             warnings.warn(
                 "prediction_step is only implemented for DPODataCollatorWithPadding, and you passed a datacollator that is different than "
                 "DPODataCollatorWithPadding - you might see unexpected behavior. Alternatively, you can implement your own prediction_step method if you are using a custom data collator"

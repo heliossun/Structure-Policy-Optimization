@@ -35,10 +35,10 @@ import torch
 import transformers
 import tokenizers
 import sys
-sys.path.insert(0,'/home/gs4288/guohao/LLaVA-NeXT')
+sys.path.insert(0,'/home/gs4288/LLaVA-NeXT')
 from llava.constants import IGNORE_INDEX, DEFAULT_IMAGE_TOKEN, DEFAULT_IM_START_TOKEN, DEFAULT_IM_END_TOKEN, IMAGE_TOKEN_INDEX
 from torch.utils.data import Dataset
-from llava.train.llava_trainer import LLaVADPOTrainer
+from llava.train.llava_trainer import LLaVASDOTrainer
 
 from llava import conversation as conversation_lib
 from llava.model import *
@@ -165,7 +165,7 @@ class TrainingArguments(transformers.TrainingArguments):
     gradient_checkpointing: bool = field(default=True)
     verbose_logging: bool = field(default=False)
     attn_implementation: str = field(default="flash_attention_2", metadata={"help": "Use transformers attention implementation."})
-    dpo_alpha: float = field(default=1.0)
+    sdo_alpha: float = field(default=1.0)
     beta: float = field(default=0.1)
     gamma: float = field(default=1.0)
     generate_during_eval: bool = field(default=False)
@@ -567,8 +567,10 @@ def preprocess_gemma(sources: List[List[Dict[str, str]]], tokenizer: transformer
     )
 
 
-def preprocess_qwen(sources, tokenizer: transformers.PreTrainedTokenizer, has_image: bool = False, max_len=2048, system_message: str = "You are a helpful assistant.") -> Dict:
+def preprocess_qwen(sources, tokenizer: transformers.PreTrainedTokenizer, has_image: bool = False, max_len=2048, system_message: str = "You are a helpful assistant.",sampler=False) -> Dict:
     roles = {"human": "<|im_start|>user", "gpt": "<|im_start|>assistant"}
+    if sampler:
+        system_message = "You are a helpful assistant. The AI assistant is also a curious virtual user. The virtual user asks complex questions that are relevant to the content in the image. Again, do not ask about uncertain details."
 
     im_start, im_end = tokenizer.additional_special_tokens_ids
     nl_tokens = tokenizer("\n").input_ids
@@ -596,17 +598,21 @@ def preprocess_qwen(sources, tokenizer: transformers.PreTrainedTokenizer, has_im
             else:
                 _input_id = tokenizer(role).input_ids + nl_tokens + tokenizer(sentence["value"]).input_ids + [im_end] + nl_tokens
             input_id += _input_id
-            if role == "<|im_start|>user":
+            if sampler:
                 _target = [im_start] + [IGNORE_INDEX] * (len(_input_id) - 3) + [im_end] + nl_tokens
-            elif role == "<|im_start|>assistant":
-                _target = [im_start] + [IGNORE_INDEX] * len(tokenizer(role).input_ids) + _input_id[len(tokenizer(role).input_ids) + 1 : -2] + [im_end] + nl_tokens
             else:
-                raise NotImplementedError
+                if role == "<|im_start|>user":
+                    _target = [im_start] + [IGNORE_INDEX] * (len(_input_id) - 3) + [im_end] + nl_tokens
+                elif role == "<|im_start|>assistant":
+                    _target = [im_start] + [IGNORE_INDEX] * len(tokenizer(role).input_ids) + _input_id[len(tokenizer(role).input_ids) + 1 : -2] + [im_end] + nl_tokens
+                else:
+                    raise NotImplementedError
             target += _target
         assert len(input_id) == len(target)
         # input_id += [tokenizer.pad_token_id] * (max_len - len(input_id))
         # target += [IGNORE_INDEX] * (max_len - len(target))
         input_ids.append(input_id)
+
         targets.append(target)
     input_ids = torch.tensor(input_ids, dtype=torch.long)
     targets = torch.tensor(targets, dtype=torch.long)
@@ -618,6 +624,77 @@ def preprocess_qwen(sources, tokenizer: transformers.PreTrainedTokenizer, has_im
     )
 
 
+def preprocess_qwen_sq2(sources, tokenizer: transformers.PreTrainedTokenizer, has_image: bool = False, max_len=2048,
+                        system_message: str = "You are a helpful assistant.", sq_r=0.3) -> Dict:
+    # roles = {"human": "<|im_start|>user", "gpt": "<|im_start|>assistant"}
+    roles = {"human": "user", "gpt": "assistant", "vh": "vuser"}
+    system_message = "You are a helpful assistant. The AI assistant is also a curious virtual user. The virtual user asks complex questions that are relevant to the content in the image. Again, do not ask about uncertain details."
+
+    image_token_index = tokenizer.convert_tokens_to_ids("<image>")
+    im_start, im_end = tokenizer.additional_special_tokens_ids
+    unmask_tokens_idx = [198, im_start, im_end]
+    nl_tokens = tokenizer("\n").input_ids
+
+    # Reset Qwen chat templates so that it won't include system message every time we apply
+    chat_template = "{% for message in messages %}{{'<|im_start|>' + message['role'] + '\n' + message['content'] + '<|im_end|>' + '\n'}}{% endfor %}{% if add_generation_prompt %}{{ '<|im_start|>assistant\n' }}{% endif %}"
+    tokenizer.chat_template = chat_template
+
+    # Apply prompt templates
+    input_ids, targets = [], []
+    for i, source in enumerate(sources):
+        if roles[source[0]["from"]] != roles["human"]:
+            source = source[1:]
+
+        input_id, target = [], []
+
+        # New version, use apply chat template
+        # Build system message for each sentence
+        #input_id += tokenizer.apply_chat_template([{"role": "system", "content": system_message}])
+        #target += [IGNORE_INDEX] * len(input_id)
+
+        for i, conv in enumerate(source):
+            # Make sure llava data can load
+            try:
+                role = conv["role"]
+                content = conv["content"]
+            except:
+                role = conv["from"]
+                content = conv["value"]
+
+            role = roles.get(role, role)
+            if role == "user":
+                role = roles.get('vh', 'vuser')
+            conv = [{"role": role, "content": content}]
+            encode_id = tokenizer.apply_chat_template(conv)
+            input_id += encode_id
+
+            if role in ["user", "system"]:
+                target += [IGNORE_INDEX] * len(encode_id)
+            else:
+
+                if role == 'vuser':
+                    encode_id[1:4]=[IGNORE_INDEX]*3
+                else:
+                    encode_id[1:3]=[IGNORE_INDEX]*2
+                target += encode_id
+
+        assert len(input_id) == len(target), f"{len(input_id)} != {len(target)}"
+        for idx, encode_id in enumerate(input_id):
+            if encode_id in unmask_tokens_idx:
+                target[idx] = encode_id
+            if encode_id == image_token_index:
+                input_id[idx] = IMAGE_TOKEN_INDEX
+
+        input_ids.append(input_id)
+
+        targets.append(target)
+    input_ids = torch.tensor(input_ids, dtype=torch.long)
+    targets = torch.tensor(targets, dtype=torch.long)
+
+    return dict(
+        input_ids=input_ids,  # tensor(bs x seq_len)
+        labels=targets,  # tensor(bs x seq_len)
+    )
 def preprocess_llama3(
     sources,
     tokenizer: transformers.PreTrainedTokenizer,
@@ -849,7 +926,7 @@ def preprocess_plain(
     return dict(input_ids=input_ids, labels=targets)
 
 
-def preprocess(sources: Sequence[str], tokenizer: transformers.PreTrainedTokenizer, has_image: bool = False) -> Dict:
+def preprocess(sources: Sequence[str], tokenizer: transformers.PreTrainedTokenizer, has_image: bool = False, sampler: bool = False) -> Dict:
     """
     Given a list of sources, each is a conversation list. This transform:
     1. Add signal '### ' at the beginning each sentence, with end signal '\n';
@@ -866,7 +943,11 @@ def preprocess(sources: Sequence[str], tokenizer: transformers.PreTrainedTokeniz
     if conversation_lib.default_conversation.version == "mpt":
         return preprocess_mpt(sources, tokenizer, has_image=has_image)
     if conversation_lib.default_conversation.version == "qwen":
-        return preprocess_qwen(sources, tokenizer, has_image=has_image)
+        if sampler:
+            return preprocess_qwen(sources, tokenizer, has_image=has_image,sampler=sampler)
+        else:
+            return preprocess_qwen_sq2(sources, tokenizer, has_image=has_image)
+
     if conversation_lib.default_conversation.version == "gemma":
         return preprocess_gemma(sources, tokenizer, has_image=has_image)
     if conversation_lib.default_conversation.version == "llama_v3":
@@ -976,7 +1057,7 @@ class SDODataset(Dataset):
         else:
             data_args.dataset_paths = [data_path]
             rank0_print(f"Loading {data_path}")
-            
+
             try:
                 cur_data_dict = json.load(open(data_path,'r'))
             except:
@@ -1006,7 +1087,9 @@ class SDODataset(Dataset):
         for sample in self.list_data_dict:
             # Calculate the length of the prompt, chosen, and rejected text ( regular dpo for now)
             #TODO: modify this to SDO: two conversations
-            cur_len = len(sample["c_pref"]['q'].split()) + len(sample["c_pref"]['a_w'].split()) + len(sample["c_pref"]['a_l'].split())
+            cur_len = (len(sample['sampler'][0].split())+len(sample['sampler'][1].split())+
+                       len(sample["c_pref"]['q'].split()) + len(sample["c_pref"]['a_w'].split()) +
+                       len(sample["c_rej"]['q'].split()) + len(sample["c_rej"]['a_l'].split()))
             # If the sample includes a video, the length is positive; otherwise, it is negative
             cur_len = cur_len if ("video" in sample or "image" in sample) else -cur_len
             length_list.append(cur_len)
@@ -1080,7 +1163,7 @@ class SDODataset(Dataset):
                 print(f"[Try other #{attempt_idx}] Failed to fetch sample {next_index}. Exception:", e)
                 pass
 
-        
+
         assert False, "Failed to fetch sample."
 
     def _get_item(self, i) -> Dict[str, torch.Tensor]:
@@ -1114,7 +1197,7 @@ class SDODataset(Dataset):
                 input_prompt = input_prompt.replace(DEFAULT_IMAGE_TOKEN, DEFAULT_IMAGE_TOKEN * self.data_args.video_token)
                 sources, query_prompt = preprocess_multimodal_movie(copy.deepcopy([e["conversations"] for e in sources]), self.data_args, input_prompt)
             else:  # using videoreader
-                frame_files = [os.path.join(video_file, f) for f in os.listdir(video_file) if 
+                frame_files = [os.path.join(video_file, f) for f in os.listdir(video_file) if
                                os.path.isfile(os.path.join(video_file, f))]
                 frame_files.sort()  # Ensure the frames are sorted if they are named sequentially
 
@@ -1132,45 +1215,9 @@ class SDODataset(Dataset):
                             video.append(frame)
                     except IOError:
                         rank0_print(f"Failed to read frame at path: {frame_path}")
-                # if "shareVideoGPTV" not in video_file and "liangke" not in video_file:
-                #     vr = VideoReader(video_file, ctx=cpu(0))
-                #     total_frame_num = len(vr)
-                #     avg_fps = round(vr.get_avg_fps() / self.data_args.video_fps)
-                #     frame_idx = [i for i in range(0, total_frame_num, avg_fps)]
-                #     if self.data_args.frames_upbound > 0:
-                #         if len(frame_idx) > self.data_args.frames_upbound:
-                #             uniform_sampled_frames = np.linspace(0, total_frame_num - 1, self.data_args.frames_upbound, dtype=int)
-                #             frame_idx = uniform_sampled_frames.tolist()
-                #     video = vr.get_batch(frame_idx).asnumpy()
-                #     video = np.array(video)
-                # else:
-                #     if "liangke" in video_file:
-                #         video_file = self.list_data_dict[i]["video"]
-                #     frame_files = [os.path.join(video_file, f) for f in os.listdir(video_file) if os.path.isfile(os.path.join(video_file, f))]
-                #     frame_files.sort()  # Ensure the frames are sorted if they are named sequentially
-
-                #     # TODO: Hard CODE: Determine the indices for uniformly sampling 10 frames
-                #     num_frames_to_sample = 10
-
-                #     total_frames = len(frame_files)
-
-                #     sampled_indices = np.linspace(0, total_frames - 1, num_frames_to_sample, dtype=int)
-
-                #     # Read and store the sampled frames
-                #     video = []
-                #     for idx in sampled_indices:
-                #         frame_path = frame_files[idx]
-                #         try:
-                #             with Image.open(frame_path) as img:
-                #                 frame = img.convert("RGB")
-                #                 video.append(frame)
-                #         except IOError:
-                #             print(f"Failed to read frame at path: {frame_path}")
-
                 processor = self.data_args.image_processor
                 image = processor.preprocess(video, return_tensors="pt")["pixel_values"]
                 image = [(image, video[0].size, "video")]
-                # sources = preprocess_multimodal(copy.deepcopy([e["conversations"] for e in sources]), self.data_args)
 
         else:
             sources = copy.deepcopy([e["conversations"] for e in sources])
@@ -1186,12 +1233,18 @@ class SDODataset(Dataset):
             data_dict["prompt"] = prompt
         #TODO add multi conversations later
         elif "c_pref" in data_dict:
-            prompt = data_dict["c_pref"]['q']
-            prompt = prompt.replace("<image>", "").strip()
-            prompt = "<image>\n" + prompt
-            data_dict["prompt"] = prompt
+            prompt_acpt = data_dict["c_pref"]['q']
+            prompt_acpt = prompt_acpt.replace("<image>", "").strip()
+            #prompt_acpt = "<image>\n" + prompt_acpt
+            prompt_rej = data_dict["c_rej"]['q']
+            prompt_rej = prompt_rej.replace("<image>", "").strip()
+            #prompt_rej = "<image>\n" + prompt_rej
+            data_dict['prompt_q']=data_dict['sampler'][0]
+            data_dict['prompt_a'] = data_dict['sampler'][1]
+            data_dict["chosen_prompt"] = prompt_acpt
+            data_dict["rejected_prompt"] = prompt_rej
             data_dict["chosen"]=data_dict["c_pref"]['a_w']
-            data_dict["rejected"]=data_dict["c_pref"]['a_l']
+            data_dict["rejected"]=data_dict["c_rej"]['a_l']
         else:
             prompt = None
 
@@ -1215,35 +1268,17 @@ class SDODataset(Dataset):
 #TODO: modify SDODataset/_get_item and DPODataCollator for our DPO
 
 @dataclass
-class DPODataCollator(DPODataCollatorWithPadding):
+class SDODataCollator(DPODataCollatorWithPadding):
     """Collate examples for DPO fine-tuning."""
 
     # tokenizer: transformers.PreTrainedTokenizer
 
     def collate(self, batch):
-        # first, pad everything to the same length
-        # input_ids, labels = tuple([instance[key] for instance in instances]
-        #                           for key in ("input_ids", "labels"))
-        # input_ids = torch.nn.utils.rnn.pad_sequence(
-        #     input_ids,
-        #     batch_first=True,
-        #     padding_value=self.tokenizer.pad_token_id)
-        # labels = torch.nn.utils.rnn.pad_sequence(labels,
-        #                                          batch_first=True,
-        #                                          padding_value=IGNORE_INDEX)
-        # input_ids = input_ids[:, :self.tokenizer.model_max_length]
-        # labels = labels[:, :self.tokenizer.model_max_length]
-        # batch = dict(
-        #     input_ids=input_ids,
-        #     labels=labels,
-        #     attention_mask=input_ids.ne(self.tokenizer.pad_token_id),
-        # )
+
         padded_batch = {}
         for k in batch[0].keys():
             if k.endswith("_input_ids") or k.endswith("_attention_mask") or k.endswith("_labels"):
-                # if "prompt" in k:
-                #     to_pad = [torch.LongTensor(ex[k][::-1]) for ex in batch]
-                # else:
+
                 to_pad = [torch.LongTensor(ex[k]) for ex in batch]
                 if k.endswith("_input_ids"):
                     padding_value = self.tokenizer.pad_token_id
@@ -1251,23 +1286,17 @@ class DPODataCollator(DPODataCollatorWithPadding):
                     padding_value = self.label_pad_token_id
                 else:
                     continue
-                # elif k.endswith("_attention_mask"):
-                #     padding_value = self.padding_value
-                # else:
-                #     raise ValueError(f"Unexpected key in batch '{k}'")
 
                 padded_batch[k] = torch.nn.utils.rnn.pad_sequence(to_pad, batch_first=True, padding_value=padding_value)
-                # for the prompt, flip back so padding is on left side
-                # if "prompt" in k:
-                #     padded_batch[k] = padded_batch[k].flip(dims=[1])
+
             else:
                 padded_batch[k] = [ex[k] for ex in batch]
-        for k in ["chosen_input_ids", "rejected_input_ids"]:
+        for k in ["chosen_input_ids", "rejected_input_ids","sampler_input_ids"]:
             attn_k = k.replace("input_ids", "attention_mask")
             padded_batch[attn_k] = padded_batch[k].ne(self.tokenizer.pad_token_id)
         return padded_batch
 
-    def tokenize_batch_element(self, prompt: str, chosen: str, rejected: str, has_image: bool = True) -> Dict:
+    def tokenize_batch_element(self, sampler_q: str, sampler_a: str, chosen_prompt: str, rejected_prompt: str, chosen: str, rejected: str, has_image: bool = True) -> Dict:
         """Tokenize a single batch element.
 
         At this stage, we don't convert to PyTorch tensors yet; we just handle the truncation
@@ -1280,19 +1309,22 @@ class DPODataCollator(DPODataCollatorWithPadding):
         """
         # import pdb; pdb.set_trace()
         batch = {}
+        sampler_sources=make_conv(sampler_q,sampler_a)
+        chosen_sources = make_conv(chosen_prompt, chosen)   # chosen answer based on chosen question
+        rejected_sources = make_conv(rejected_prompt, rejected) # rejected answer based on rejected question
+        #only sampler has system message
+        sampler_data_dict = preprocess([sampler_sources], self.tokenizer, has_image=has_image, sampler=True)
+        chosen_data_dict = preprocess([chosen_sources], self.tokenizer, has_image=False)
+        rejected_data_dict = preprocess([rejected_sources], self.tokenizer, has_image=False)
 
-        chosen_sources = make_conv(prompt, chosen)
-        rejected_sources = make_conv(prompt, rejected)
-        chosen_data_dict = preprocess([chosen_sources], self.tokenizer, has_image=has_image)
-        # chosen_data_dict['attention_mask'] = chosen_data_dict["input_ids"].ne(self.tokenizer.pad_token_id)
-
-        rejected_data_dict = preprocess([rejected_sources], self.tokenizer, has_image=has_image)
-        # rejected_data_dict['attention_mask'] = rejected_data_dict["input_ids"].ne(self.tokenizer.pad_token_id)
-
+        sampler_data_dict = {k: v[0] for k, v in sampler_data_dict.items()}
         chosen_data_dict = {k: v[0] for k, v in chosen_data_dict.items()}
         rejected_data_dict = {k: v[0] for k, v in rejected_data_dict.items()}
-
+        # print("sampler_data_dict: #####", sampler_data_dict)
+        # print("chosen_data_dict: +++++",chosen_data_dict)
+        # print("rejected_data_dict: -----",rejected_data_dict)
         for k, toks in {
+            "sampler":sampler_data_dict,
             "chosen": chosen_data_dict,
             "rejected": rejected_data_dict,
         }.items():
@@ -1307,14 +1339,17 @@ class DPODataCollator(DPODataCollatorWithPadding):
         tokenized_batch = []
         Xs, keys = [], []
         for feature in features:
-            prompt = feature["prompt"]
+            sampler_q=feature['prompt_q']
+            sampler_a=feature['prompt_a']
+            prompt_acpt = feature["chosen_prompt"]
+            prompt_rej = feature["rejected_prompt"]
             chosen = feature["chosen"]
             rejected = feature["rejected"]
             has_image = feature["has_image"]
-            # Xs.append(feature[has_X])
-            # keys.append(has_X)
 
-            batch_element = self.tokenize_batch_element(prompt, chosen, rejected, has_image=has_image)
+
+            batch_element = self.tokenize_batch_element(sampler_q,sampler_a,prompt_acpt, prompt_rej, chosen, rejected, has_image=has_image)
+            #rank0_print("<<<<<<<data batch:",batch_element.keys())
             tokenized_batch.append(batch_element)
 
         # return collated batch
@@ -1336,7 +1371,7 @@ class DPODataCollator(DPODataCollatorWithPadding):
         return padded_batch
 
 
-def make_dpo_data_module(tokenizer: transformers.PreTrainedTokenizer, data_args) -> Dict:
+def make_sdo_data_module(tokenizer: transformers.PreTrainedTokenizer, data_args) -> Dict:
     """Make dataset and collator for supervised fine-tuning."""
     train_dataset = SDODataset(tokenizer=tokenizer, data_path=data_args.data_path, data_args=data_args)
     return train_dataset
@@ -1791,19 +1826,19 @@ def train(attn_implementation=None):
                     if training_args.bf16 and module.weight.dtype == torch.float32:
                         module = module.to(torch.bfloat16)
 
-    train_dataset = make_dpo_data_module(tokenizer=tokenizer, data_args=data_args)
+    train_dataset = make_sdo_data_module(tokenizer=tokenizer, data_args=data_args)
     rank0_print("Finish loading dataset....")
-    data_collator = DPODataCollator(
+    data_collator = SDODataCollator(
         tokenizer,
         label_pad_token_id=IGNORE_INDEX,
         pad_token_id=tokenizer.pad_token_id,
     )
 
-    trainer = LLaVADPOTrainer(
+    trainer = LLaVASDOTrainer(
         model,
         ref_model,
         args=training_args,
-        dpo_alpha=training_args.dpo_alpha,
+        sdo_alpha=training_args.sdo_alpha,
         beta=training_args.beta,
         gamma=training_args.gamma,
         train_dataset=train_dataset,
