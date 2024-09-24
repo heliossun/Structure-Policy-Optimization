@@ -35,7 +35,7 @@ import torch
 import transformers
 import tokenizers
 import sys
-sys.path.insert(0,'/home/gs4288/LLaVA-NeXT')
+sys.path.insert(0,'/home/gs4288/guohao/LLaVA-NeXT')
 from llava.constants import IGNORE_INDEX, DEFAULT_IMAGE_TOKEN, DEFAULT_IM_START_TOKEN, DEFAULT_IM_END_TOKEN, IMAGE_TOKEN_INDEX
 from torch.utils.data import Dataset
 from llava.train.llava_trainer import LLaVASDOTrainer
@@ -170,7 +170,7 @@ class TrainingArguments(transformers.TrainingArguments):
     gamma: float = field(default=1.0)
     generate_during_eval: bool = field(default=False)
     precompute_ref_log_probs: bool = field(default=False)
-
+    lamda: int = 50
 
 def maybe_zero_3(param, ignore_status=False, name=None):
     from deepspeed import zero
@@ -1848,6 +1848,7 @@ def train(attn_implementation=None):
         max_length=training_args.model_max_length,
         generate_during_eval=False,  # training_args.generate_during_eval,
         precompute_ref_log_probs=training_args.precompute_ref_log_probs,
+        lamda=training_args.lamda
     )
 
     if list(pathlib.Path(training_args.output_dir).glob("checkpoint-*")):

@@ -177,6 +177,7 @@ class DPOTrainer(Trainer):
         model_adapter_name: Optional[str] = None,
         ref_adapter_name: Optional[str] = None,
         reference_free: bool = False,
+        lamda:int=50
     ):
         # import pdb;pdb.set_trace()
         if model_init_kwargs is None:
@@ -215,7 +216,7 @@ class DPOTrainer(Trainer):
         self.model_adapter_name = model_adapter_name
         self.ref_adapter_name = ref_adapter_name
         self.reference_free = reference_free
-
+        self.lamda=lamda
         if ref_model:
             self.ref_model = ref_model
         elif self.is_peft_model or precompute_ref_log_probs:
@@ -760,7 +761,9 @@ class DPOTrainer(Trainer):
 
         pi_logratios = pi_logratios.to(self.accelerator.device)
         ref_logratios = ref_logratios.to(self.accelerator.device)
-        logits = pi_logratios - ref_logratios
+        regulariz = self.lamda * torch.maximum(torch.tensor([0], dtype=pi_logratios.dtype, device=pi_logratios.device),reference_chosen_logps-policy_chosen_logps)
+        logits = pi_logratios - ref_logratios-regulariz
+        # logits = pi_logratios - ref_logratios
         # print(f"pi log ratios: {pi_logratios}")
         # print(f"ref log ratios: {ref_logratios}")
         # print(f"logits: {logits}")
@@ -768,7 +771,7 @@ class DPOTrainer(Trainer):
         # We ignore the reference model as beta -> 0. The label_smoothing parameter encodes our uncertainty about the labels and
         # calculates a conservative DPO loss.
         if self.loss_type == "sigmoid":
-            losses = -F.logsigmoid(self.beta * logits) * (1 - self.label_smoothing) - F.logsigmoid(-self.beta * logits) * self.label_smoothing
+            losses = -F.logsigmoid(self.beta * logits) * (1 - self.label_smoothing)
         elif self.loss_type == "hinge":
             losses = torch.relu(1 - self.beta * logits)
         elif self.loss_type == "ipo":

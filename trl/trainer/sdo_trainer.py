@@ -124,6 +124,7 @@ class SDOTrainer(Trainer):
             Name of the reference PEFT adapter, when using LoRA with multiple adapters.
         reference_free (`bool`):
             If True, we ignore the _provided_ reference model and implicitly use a reference model that assigns equal probability to all responses.
+        lamda ('int'): hyperparameter of regularization term in DPO loss
     """
 
     _tag_names = ["trl", "sdo"]
@@ -164,6 +165,7 @@ class SDOTrainer(Trainer):
         model_adapter_name: Optional[str] = None,
         ref_adapter_name: Optional[str] = None,
         reference_free: bool = False,
+        lamda: Optional[int] = None,
     ):
         # import pdb;pdb.set_trace()
         if model_init_kwargs is None:
@@ -202,7 +204,7 @@ class SDOTrainer(Trainer):
         self.model_adapter_name = model_adapter_name
         self.ref_adapter_name = ref_adapter_name
         self.reference_free = reference_free
-
+        self.lamda=lamda
         if ref_model:
             self.ref_model = ref_model
         elif self.is_peft_model or precompute_ref_log_probs:
@@ -760,9 +762,10 @@ class SDOTrainer(Trainer):
 
             pi_logratios = pi_logratios.to(self.accelerator.device)
             ref_logratios = ref_logratios.to(self.accelerator.device)
-            logits = pi_logratios - ref_logratios
+            regulariz = self.lamda * torch.maximum(torch.tensor([0], dtype=pi_logratios.dtype, device=pi_logratios.device),reference_chosen_logps-policy_chosen_logps)
+            logits = pi_logratios - ref_logratios-regulariz
             if self.loss_type == "sigmoid":
-                losses = -F.logsigmoid(self.beta * logits) * (1 - self.label_smoothing) - F.logsigmoid(-self.beta * logits) * self.label_smoothing
+                losses = -F.logsigmoid(self.beta * logits) * (1 - self.label_smoothing)
             elif self.loss_type == "hinge":
                 losses = torch.relu(1 - self.beta * logits)
             elif self.loss_type == "ipo":
@@ -821,11 +824,9 @@ class SDOTrainer(Trainer):
         per_token_logps = torch.gather(logits.log_softmax(-1), dim=2, index=labels.unsqueeze(2)).squeeze(2)
         cur_batch=0
         split_idxs=[]
-        # saving the index of the last <imstart> token before <Assistant>
         for i,idx in enumerate(assistant_idx):
-            # dix: (batch, index), since we are concating the accept and reject conversation, so the total batch number is 2*train_batch
             if idx[0]!=cur_batch:
-                split_idxs.append(assistant_idx[i-1][1]) # there are multiple <assistant> in one conversation, we only save the last one in each cov
+                split_idxs.append(assistant_idx[i-1][1])
                 cur_batch=idx[0]
             if i==len(assistant_idx)-1:
                 split_idxs.append(idx[1])
@@ -834,7 +835,6 @@ class SDOTrainer(Trainer):
 
         question_logps=[]
         answer_logps=[]
-        # split the logps of each conversation tokens into two parts: System+sampler+sq, a
         for i,logps in enumerate(per_token_logps):
             ques_logps=logps[:split_idxs[i]]
             ques_mask=loss_mask[i][:split_idxs[i]]

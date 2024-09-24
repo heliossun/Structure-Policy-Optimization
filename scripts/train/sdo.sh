@@ -1,14 +1,14 @@
-ACCELERATE_CPU_AFFINITY=1 torchrun --nproc_per_node=1 --nnodes=1  \
+ACCELERATE_CPU_AFFINITY=1 torchrun --nproc_per_node=8 --nnodes=1  \
     llava/train/train_sdo.py \
-    --lora_enable True --lora_r 128 --lora_alpha 256 --mm_projector_lr 5e-6 \
+    --lora_enable True --lora_r 128 --lora_alpha 256 --mm_projector_lr 5e-5 \
     --deepspeed scripts/zero3.json \
-    --model_name_or_path lmms-lab/llava-onevision-qwen2-0.5b-ov \
+    --model_name_or_path ZachSun/sqllava-qwen-ov-7b \
     --version qwen_sq\
-    --sdo_alpha 1.0 --beta 0.1 --gamma 0 \
-    --data_path ./data/7b_selfQA_labeling-72b-chat.json \
+    --sdo_alpha 1.0 --beta 0.1 --gamma 0 --lamda 50\
+    --data_path ./data/labling/7b-sqa-labling/merge.json  \
     --video_folder ./data/video \
     --mm_tunable_parts="mm_vision_tower,mm_mlp_adapter,mm_language_model" \
-    --mm_vision_tower_lr 2e-5 \
+    --mm_vision_tower_lr 1e-4 \
     --vit_lora_enable \
     --lora_alpha_vit 128 \
     --lora_r_vit 64 \
@@ -32,9 +32,9 @@ ACCELERATE_CPU_AFFINITY=1 torchrun --nproc_per_node=1 --nnodes=1  \
     --save_strategy "steps" \
     --save_steps 1000000 \
     --save_total_limit 1 \
-    --learning_rate 5e-5 \
+    --learning_rate 2e-4 \
     --weight_decay 0. \
-    --warmup_ratio 0.15 \
+    --warmup_ratio 0.1 \
     --lr_scheduler_type "linear" \
     --logging_steps 1 \
     --tf32 True \

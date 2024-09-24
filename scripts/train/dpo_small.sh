@@ -2,10 +2,10 @@ ACCELERATE_CPU_AFFINITY=1 torchrun --nproc_per_node=8 --nnodes=1  \
     llava/train/train_dpo.py \
     --lora_enable True --lora_r 128 --lora_alpha 256 --mm_projector_lr 5e-5 \
     --deepspeed scripts/zero3.json \
-    --model_name_or_path ZachSun/sqllava-qwen-ov-7b \
+    --model_name_or_path ZachSun/sqllava-qwen-ov-0.5b \
     --version qwen_sq\
     --dpo_alpha 1.0 --beta 0.1 --gamma 0 --lamda 50\
-    --data_path ./data/labling/7b-sqa-labling/merge.json \
+    --data_path ./data/labling/0.5b-sqa-labling/merge.json \
     --video_folder ./data/video \
     --mm_tunable_parts="mm_vision_tower,mm_mlp_adapter,mm_language_model" \
     --mm_vision_tower_lr 1e-4 \
@@ -23,7 +23,7 @@ ACCELERATE_CPU_AFFINITY=1 torchrun --nproc_per_node=8 --nnodes=1  \
     --mm_patch_merge_type spatial_unpad \
     --bf16 True \
     --run_name test \
-    --output_dir "./checkpoints/ours-7b-qwen-lora-dpo" \
+    --output_dir "./checkpoints/ours-0.5b-qwen-lora-dpo" \
     --num_train_epochs 1 \
     --per_device_train_batch_size 2 \
     --per_device_eval_batch_size 4 \
