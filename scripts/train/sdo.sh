@@ -5,7 +5,7 @@ ACCELERATE_CPU_AFFINITY=1 torchrun --nproc_per_node=8 --nnodes=1  \
     --model_name_or_path ZachSun/sqllava-qwen-ov-7b \
     --version qwen_sq\
     --sdo_alpha 1.0 --beta 0.1 --gamma 0 --lamda 50\
-    --data_path ./data/labling/7b-sqa-labling/merge.json  \
+    --data_path ./data/labling/7b-sqa-labling/merge.json \
     --video_folder ./data/video \
     --mm_tunable_parts="mm_vision_tower,mm_mlp_adapter,mm_language_model" \
     --mm_vision_tower_lr 1e-4 \
