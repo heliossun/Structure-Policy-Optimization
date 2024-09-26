@@ -133,7 +133,8 @@ class SDOTrainer(Trainer):
         self,
         model: Optional[Union[PreTrainedModel, nn.Module, str]] = None,
         ref_model: Optional[Union[PreTrainedModel, nn.Module, str]] = None,
-        sdo_alpha: float = 1.0,
+        sdo_alpha_a: float = 1.0,
+        sdo_alpha_q: float = 1.0,
         beta: float = 0.1,
         gamma: float = 0.1,
         label_smoothing: float = 0,
@@ -280,7 +281,8 @@ class SDOTrainer(Trainer):
         if loss_type in ["hinge", "ipo", "kto_pair"] and label_smoothing > 0:
             warnings.warn("You are using a loss type that does not support label smoothing. Ignoring label_smoothing parameter.")
 
-        self.sdo_alpha = sdo_alpha
+        self.sdo_alpha_a = sdo_alpha_a
+        self.sdo_alpha_q = sdo_alpha_q
         self.beta = beta
         self.gamma = gamma
         self.label_smoothing = label_smoothing
@@ -1025,9 +1027,9 @@ class SDOTrainer(Trainer):
             reference_rejected_asr_logps,
         )
         qs_losses = qs_losses.mean()
-        sdo_qs_losses = qs_losses * self.sdo_alpha
+        sdo_qs_losses = qs_losses * self.sdo_alpha_q
         asr_losses = asr_losses.mean()
-        sdo_asr_losses = asr_losses * self.sdo_alpha
+        sdo_asr_losses = asr_losses * self.sdo_alpha_a
         unscaled_sft_loss = self.get_sft_loss(policy_chosen_logits, chosen_labels)
         sft_loss = unscaled_sft_loss * self.gamma
 
