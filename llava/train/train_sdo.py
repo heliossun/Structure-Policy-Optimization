@@ -35,7 +35,7 @@ import torch
 import transformers
 import tokenizers
 import sys
-sys.path.insert(0,'/home/gs4288/guohao/LLaVA-NeXT')
+sys.path.insert(0,'/home/ztao/guohao/LLaVA-NeXT')
 from llava.constants import IGNORE_INDEX, DEFAULT_IMAGE_TOKEN, DEFAULT_IM_START_TOKEN, DEFAULT_IM_END_TOKEN, IMAGE_TOKEN_INDEX
 from torch.utils.data import Dataset
 from llava.train.llava_trainer import LLaVASDOTrainer
@@ -165,7 +165,8 @@ class TrainingArguments(transformers.TrainingArguments):
     gradient_checkpointing: bool = field(default=True)
     verbose_logging: bool = field(default=False)
     attn_implementation: str = field(default="flash_attention_2", metadata={"help": "Use transformers attention implementation."})
-    sdo_alpha: float = field(default=1.0)
+    sdo_alpha_a: float = field(default=1.0)
+    sdo_alpha_q: float = field(default=1.0)
     beta: float = field(default=0.1)
     gamma: float = field(default=1.0)
     generate_during_eval: bool = field(default=False)
@@ -1838,7 +1839,8 @@ def train(attn_implementation=None):
         model,
         ref_model,
         args=training_args,
-        sdo_alpha=training_args.sdo_alpha,
+        sdo_alpha_a=training_args.sdo_alpha_a,
+        sdo_alpha_q=training_args.sdo_alpha_q,
         beta=training_args.beta,
         gamma=training_args.gamma,
         train_dataset=train_dataset,
