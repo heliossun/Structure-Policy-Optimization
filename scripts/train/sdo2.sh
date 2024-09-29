@@ -23,14 +23,15 @@ ACCELERATE_CPU_AFFINITY=1 torchrun --nproc_per_node=8 --nnodes=1  \
     --mm_patch_merge_type spatial_unpad \
     --bf16 True \
     --run_name ours-7b-qwen-lora-sdo-g0.1-lr1e5-lmd50-3epo \
-    --output_dir "./checkpoints/ours-7b-qwen-lora-sdo-g0.1-lr1e5-alpa2.0-alpq1.0-lmd50-3epo" \
-    --num_train_epochs 3 \
+    --output_dir "./checkpoints/ours-7b-qwen-lora-sdo-g0.1-lr1e5-alpa2.0-alpq1.0-lmd50-2epo" \
+    --num_train_epochs 2 \
     --per_device_train_batch_size 2 \
     --per_device_eval_batch_size 4 \
     --gradient_accumulation_steps 8 \
     --evaluation_strategy "no" \
-    --save_strategy "epoch" \
+    --save_strategy "steps" \
     --save_steps 1000000 \
+    --save_total_limit 1 \
     --learning_rate 1e-5 \
     --weight_decay 0. \
     --warmup_ratio 0.11 \
