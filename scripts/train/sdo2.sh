@@ -4,7 +4,7 @@ ACCELERATE_CPU_AFFINITY=1 torchrun --nproc_per_node=8 --nnodes=1  \
     --deepspeed scripts/zero3.json \
     --model_name_or_path ZachSun/sqllava-qwen-ov-7b \
     --version qwen_sq\
-    --sdo_alpha_a 2.0 --sdo_alpha_q 1.0 --beta 0.1 --gamma 0.1 --lamda 50\
+    --sdo_alpha_a 1.2 --sdo_alpha_q 1.0 --beta 0.1 --gamma 0 --lamda 50\
     --data_path ./data/labling/7b-sqa-labling/merge.json \
     --video_folder ./data/video \
     --mm_tunable_parts="mm_vision_tower,mm_mlp_adapter,mm_language_model" \
@@ -22,9 +22,9 @@ ACCELERATE_CPU_AFFINITY=1 torchrun --nproc_per_node=8 --nnodes=1  \
     --image_grid_pinpoints  "(1x1),...,(6x6)" \
     --mm_patch_merge_type spatial_unpad \
     --bf16 True \
-    --run_name ours-7b-qwen-lora-sdo-g0.1-lr1e5-lmd50-3epo \
-    --output_dir "./checkpoints/ours-7b-qwen-lora-sdo-g0.1-lr1e5-alpa2.0-alpq1.0-lmd50-2epo" \
-    --num_train_epochs 2 \
+    --run_name ours-7b-qwen-lora-sdo-g0-lr1e5-lmd50-3epo \
+    --output_dir "./checkpoints/ours-7b-qwen-lora-sdo-g0-lr1e5-alpa1.2-alpq1.0-lmd50-3epo" \
+    --num_train_epochs 3 \
     --per_device_train_batch_size 2 \
     --per_device_eval_batch_size 4 \
     --gradient_accumulation_steps 8 \
