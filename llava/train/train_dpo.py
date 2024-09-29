@@ -1849,6 +1849,7 @@ def train(attn_implementation=None):
     trainer = LLaVADPOTrainer(
         model,
         ref_model,
+        vision_tower,
         args=training_args,
         dpo_alpha=training_args.dpo_alpha,
         beta=training_args.beta,

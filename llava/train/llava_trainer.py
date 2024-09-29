@@ -513,10 +513,10 @@ class LLaVADPOTrainer(DPOTrainer):
                 checkpoint_folder = f"{PREFIX_CHECKPOINT_DIR}-{self.state.global_step}"
                 run_dir = self._get_output_dir(trial=trial)
                 output_dir = os.path.join(run_dir, checkpoint_folder)
-                from transformers.modeling_utils import unwrap_model
-
-                unwrapped_model = unwrap_model(model)
-                self.save_my_lora_ckpt(output_dir, self.args, unwrapped_model)
+                #from transformers.modeling_utils import unwrap_model
+                self.model.config.save_pretrained(output_dir)
+                #unwrapped_model = unwrap_model(model)
+                self.save_my_lora_ckpt(output_dir, self.args, self.model)
             else:
                 super(LLaVADPOTrainer, self)._save_checkpoint(model, trial, metrics)
 
@@ -649,10 +649,10 @@ class LLaVASDOTrainer(SDOTrainer):
                 checkpoint_folder = f"{PREFIX_CHECKPOINT_DIR}-{self.state.global_step}"
                 run_dir = self._get_output_dir(trial=trial)
                 output_dir = os.path.join(run_dir, checkpoint_folder)
-                from transformers.modeling_utils import unwrap_model
-
-                unwrapped_model = unwrap_model(model)
-                self.save_my_lora_ckpt(output_dir, self.args, unwrapped_model)
+                #from transformers.modeling_utils import unwrap_model
+                self.model.config.save_pretrained(output_dir)
+                #unwrapped_model = unwrap_model(model)
+                self.save_my_lora_ckpt(output_dir, self.args, self.model)
             else:
                 super(LLaVASDOTrainer, self)._save_checkpoint(model, trial, metrics)
 

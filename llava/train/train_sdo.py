@@ -1834,10 +1834,10 @@ def train(attn_implementation=None):
         label_pad_token_id=IGNORE_INDEX,
         pad_token_id=tokenizer.pad_token_id,
     )
-
     trainer = LLaVASDOTrainer(
         model,
         ref_model,
+        vision_tower,
         args=training_args,
         sdo_alpha_a=training_args.sdo_alpha_a,
         sdo_alpha_q=training_args.sdo_alpha_q,
