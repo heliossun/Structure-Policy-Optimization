@@ -4,14 +4,14 @@ ACCELERATE_CPU_AFFINITY=1 torchrun --nproc_per_node=8 --nnodes=1  \
     --deepspeed scripts/zero3.json \
     --model_name_or_path ZachSun/sqllava-qwen-ov-0.5b \
     --version qwen_1_5\
-    --dpo_alpha 1.0 --beta 0.1 --gamma 0.1 --lamda 50\
+    --dpo_alpha 1.0 --beta 0.1 --gamma 0 --lamda 50\
     --data_path ./data/labling/0.5b-sqa-labling/merge.json \
     --video_folder ./data/video \
     --mm_tunable_parts="mm_vision_tower,mm_mlp_adapter,mm_language_model" \
     --mm_vision_tower_lr 5e-6 \
     --vit_lora_enable \
-    --lora_alpha_vit 128 \
-    --lora_r_vit 64 \
+    --lora_alpha_vit 64 \
+    --lora_r_vit 32 \
     --vision_tower google/siglip-so400m-patch14-384 \
     --mm_projector_type mlp2x_gelu \
     --mm_vision_select_layer -2 \
@@ -23,13 +23,14 @@ ACCELERATE_CPU_AFFINITY=1 torchrun --nproc_per_node=8 --nnodes=1  \
     --mm_patch_merge_type spatial_unpad \
     --bf16 True \
     --run_name test \
-    --output_dir "./checkpoints/ours-0.5b-qwen-lora-dpo-lr1e5-g0.1-lmd50-2epo" \
+    --output_dir "./checkpoints/ours-0.5b-qwen-lora-dpo-lr1e5-g0-lmd50-2epo" \
     --num_train_epochs 2 \
     --per_device_train_batch_size 2 \
     --per_device_eval_batch_size 4 \
     --gradient_accumulation_steps 8 \
     --evaluation_strategy "no" \
-    --save_strategy "epoch" \
+    --save_strategy "steps" \
+    --save_total_limit 1 \
     --save_steps 1000000 \
     --save_total_limit 1 \
     --learning_rate 1e-5 \
