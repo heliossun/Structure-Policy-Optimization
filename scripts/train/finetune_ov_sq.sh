@@ -23,7 +23,7 @@ ACCELERATE_CPU_AFFINITY=1 torchrun --nproc_per_node=8 --nnodes=1 \
     --mm_patch_merge_type spatial_unpad \
     --bf16 True \
     --run_name test \
-    --output_dir "./checkpoints/sqllava-lora-qwen-7b-ovVideo-1e5" \
+    --output_dir "./checkpoints/sqllava-lora-qwen-7b-ovVideo-1e5-0.7sq" \
     --num_train_epochs 1 \
     --per_device_train_batch_size 2 \
     --per_device_eval_batch_size 4 \
@@ -34,7 +34,7 @@ ACCELERATE_CPU_AFFINITY=1 torchrun --nproc_per_node=8 --nnodes=1 \
     --save_total_limit 1 \
     --learning_rate 1e-5 \
     --weight_decay 0. \
-    --warmup_ratio 0.1 \
+    --warmup_ratio 0.15 \
     --lr_scheduler_type "cosine" \
     --logging_steps 1 \
     --tf32 True \
@@ -50,5 +50,5 @@ ACCELERATE_CPU_AFFINITY=1 torchrun --nproc_per_node=8 --nnodes=1 \
     --ToME False \
     --merging_r 16 \
     --trend -1.0 \
-    --sq_r 0.5
+    --sq_r 0.7
 # You can delete the sdpa attn_implementation if you want to use flash attn
