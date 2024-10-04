@@ -17,6 +17,7 @@ for IDX in $(seq 0 $((CHUNKS-1))); do
         --answers-file ${CHUNKS}_${IDX}.json \
         --out_dir ./data/selfqa/$CKPT \
         --num-chunks $CHUNKS \
+        --sampleNum 2000000 \
         --chunk-idx $IDX &
 done
 

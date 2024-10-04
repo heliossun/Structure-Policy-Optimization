@@ -4,7 +4,7 @@ ACCELERATE_CPU_AFFINITY=1 torchrun --nproc_per_node=8 --nnodes=1 \
     --deepspeed scripts/zero3.json \
     --model_name_or_path lmms-lab/llava-onevision-qwen2-7b-ov \
     --version qwen_sq\
-    --data_path ./data/m4-instruct-anno+videov2.json \
+    --data_path ./data/ours_interleave.json \
     --image_folder ./data/image \
     --video_folder ./data/video \
     --mm_tunable_parts="mm_vision_tower,mm_mlp_adapter,mm_language_model" \
@@ -23,7 +23,7 @@ ACCELERATE_CPU_AFFINITY=1 torchrun --nproc_per_node=8 --nnodes=1 \
     --mm_patch_merge_type spatial_unpad \
     --bf16 True \
     --run_name test \
-    --output_dir "./checkpoints/sqllava-lora-qwen-7b-ovVideo-1e5-0.7sq" \
+    --output_dir "./checkpoints/sqllava-lora-qwen-7b-interleave-1e5-0.5sq" \
     --num_train_epochs 1 \
     --per_device_train_batch_size 2 \
     --per_device_eval_batch_size 4 \
@@ -50,5 +50,5 @@ ACCELERATE_CPU_AFFINITY=1 torchrun --nproc_per_node=8 --nnodes=1 \
     --ToME False \
     --merging_r 16 \
     --trend -1.0 \
-    --sq_r 0.7
+    --sq_r 0.5
 # You can delete the sdpa attn_implementation if you want to use flash attn

@@ -14,7 +14,8 @@ import argparse
 import json
 from tqdm import tqdm
 import math
-from random import sample
+import random
+random.seed(10)
 warnings.filterwarnings("ignore")
 # Load the OneVision model
 
@@ -77,19 +78,37 @@ def eval_model(args):
     tokenizer, model, image_processor, max_length = load_pretrained_model(model_path, args.model_base, args.model_name, device_map=device_map,lora_pt=lora_pt)
 
     model.eval()
-    #data_dict = json.load(open(args.question_file,'r'))[:args.test_size]
-    data_dict = json.load(open(args.question_file,'r'))
-    if len(data_dict)>200000:
-        data_dict = sample(data_dict,200000)
+    old_dt = json.load(open(args.question_file,'r'))
+    data_dict=[]
+    for d in old_dt:
+        if 'video' in d:
+            data_dict.append(d)
+        elif 'image' in d:
+            image_file = d["image"]
+            if type(image_file) is list:
+                if len(image_file) > 1:
+                    continue
+                else:
+                    data_dict.append(d)
+            else:
+                data_dict.append(d)
+    del old_dt
+    print("Total image and video samples: ",len(data_dict))
+    if len(data_dict)>args.sampleNum:
+        print(f"random sample {args.sampleNum} items")
+        data_dict = random.sample(data_dict,args.sampleNum)
     data_dict = get_chunk(data_dict, args.num_chunks, args.chunk_idx)
+    
     if not os.path.exists(args.out_dir):
     # If it doesn't exist, create the directory
         os.makedirs(args.out_dir)
     out_file = open(os.path.join(args.out_dir,args.answers_file), 'a',encoding='utf-8')
-    id=0
+    
+    
     video_file=None
     image_file=None
-    for source in tqdm(data_dict):
+    # we only use single image and video data for preference data generation
+    for source in data_dict:
         if 'video' in source:
             video_file = source["video"]
             video = os.path.join(args.video_folder, video_file)
@@ -110,7 +129,7 @@ def eval_model(args):
                 img = Image.open(os.path.join(args.image_folder, image_file)).convert("RGB")
                 image_sizes = [img.size]
                 image_tensors = process_images([img], image_processor, model.config)
-        # Prepare conversation input
+       
         image_tensors = [_image.to(dtype=torch.float16, device=device) for _image in image_tensors]
         conv_template = "qwen_sq"
         fq=source['conversations'][0]['value'].replace('<image>\n','')
@@ -181,12 +200,12 @@ def eval_model(args):
         else:
             visual_modality="image"
             visual_file=image_file
-        out_p={"id": id,
+        out_p={"id": source['id'],
                visual_modality: visual_file,
                "sampler": [fqs,first_answer],
                "questions": questions,
                "answers":answers}
-        id+=1
+        
         try:
             out_file.write(json.dumps(out_p)+'\n')
             out_file.flush()
@@ -213,7 +232,7 @@ if __name__ == "__main__":
     parser.add_argument("--top_p", type=float, default=None)
     parser.add_argument("--num_beams", type=int, default=1)
     parser.add_argument("--n_shot", type=int, default=2)
-    parser.add_argument("--test_size", type=int, default=10000000)
+    parser.add_argument("--sampleNum", type=int, default=10000000)
     args = parser.parse_args()
 
     eval_model(args)
