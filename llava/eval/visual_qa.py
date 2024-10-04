@@ -14,6 +14,7 @@ import argparse
 import json
 from tqdm import tqdm
 import math
+from random import sample
 warnings.filterwarnings("ignore")
 # Load the OneVision model
 
@@ -70,33 +71,54 @@ def eval_model(args):
     device = "cuda"
     device_map = "auto"
     model_path = os.path.expanduser(args.model_path)
-    lora_pt = os.path.join(args.model_path, "Vit-lora")
-    model_name = get_model_name_from_path(model_path)
+    lora_pt=None
+    if args.model_base:
+        lora_pt = os.path.join(args.model_path, "Vit-lora")
     tokenizer, model, image_processor, max_length = load_pretrained_model(model_path, args.model_base, args.model_name, device_map=device_map,lora_pt=lora_pt)
 
     model.eval()
     #data_dict = json.load(open(args.question_file,'r'))[:args.test_size]
     data_dict = json.load(open(args.question_file,'r'))
+    if len(data_dict)>200000:
+        data_dict = sample(data_dict,200000)
     data_dict = get_chunk(data_dict, args.num_chunks, args.chunk_idx)
     if not os.path.exists(args.out_dir):
     # If it doesn't exist, create the directory
         os.makedirs(args.out_dir)
     out_file = open(os.path.join(args.out_dir,args.answers_file), 'a',encoding='utf-8')
     id=0
+    video_file=None
+    image_file=None
     for source in tqdm(data_dict):
-        video_file = source["video"]
-        video = os.path.join(args.video_folder, video_file)
-        video_frames = load_frames(video)
-        image_tensors = process_images(video_frames, image_processor, model.config)
-        image_tensors = [_image.to(dtype=torch.float16, device=device) for _image in image_tensors]
-
+        if 'video' in source:
+            video_file = source["video"]
+            video = os.path.join(args.video_folder, video_file)
+            video_frames = load_frames(video)
+            image_tensors = process_images(video_frames, image_processor, model.config)
+            image_sizes = [frame.size for frame in video_frames]
+        elif 'image' in source:
+            image_file = source["image"]
+            if type(image_file) is list:
+                imgs=[Image.open(os.path.join(args.image_folder, img_f)).convert("RGB") for img_f in image_file]     
+                
+                if len(image_file) > 1:
+                    continue
+                else:
+                    image_sizes = [img.size for img in imgs]
+                    image_tensors = process_images(imgs,image_processor, model.config)
+            else:
+                img = Image.open(os.path.join(args.image_folder, image_file)).convert("RGB")
+                image_sizes = [img.size]
+                image_tensors = process_images([img], image_processor, model.config)
         # Prepare conversation input
+        image_tensors = [_image.to(dtype=torch.float16, device=device) for _image in image_tensors]
         conv_template = "qwen_sq"
         fq=source['conversations'][0]['value'].replace('<image>\n','')
+        fq=source['conversations'][0]['value'].replace('\n<image>','')
         fqs = f"{DEFAULT_IMAGE_TOKEN}\n{fq}"
         first_answer=source['conversations'][1]['value']
         conv = copy.deepcopy(conv_templates[conv_template])
-        image_sizes = [frame.size for frame in video_frames]
+        
 
 
         conv.clear_message()
@@ -153,9 +175,14 @@ def eval_model(args):
                 )
                 answer = tokenizer.batch_decode(cont, skip_special_tokens=True)[0]
                 answers.append(answer)
-
+        if video_file:
+            visual_modality="video"
+            visual_file=video_file
+        else:
+            visual_modality="image"
+            visual_file=image_file
         out_p={"id": id,
-               "video": video_file,
+               visual_modality: visual_file,
                "sampler": [fqs,first_answer],
                "questions": questions,
                "answers":answers}
@@ -173,6 +200,7 @@ if __name__ == "__main__":
     parser.add_argument("--model-path", type=str, default="facebook/opt-350m")
     parser.add_argument("--model-base", type=str, default=None)
     parser.add_argument("--video-folder", type=str, default="")
+    parser.add_argument("--image-folder", type=str, default="")
     parser.add_argument("--model-name", type=str, default="")
     parser.add_argument("--out_dir", type=str, default="")
     parser.add_argument("--extra-prompt", type=str, default="")
