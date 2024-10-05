@@ -3,8 +3,8 @@ ACCELERATE_CPU_AFFINITY=1 torchrun --nproc_per_node=8 --nnodes=1  \
     --lora_enable True --lora_r 128 --lora_alpha 256 --mm_projector_lr 2e-6 \
     --deepspeed scripts/zero3.json \
     --model_name_or_path ZachSun/sqllava-qwen-ov-0.5b \
-    --version qwen_sq\
-    --sdo_alpha_a 1.0 --sdo_alpha_q 1.2 --beta 0.1 --gamma 0 --lamda 50\
+    --version qwen_1_5\
+    --sdo_alpha_a 1.0 --sdo_alpha_q 1 --beta 0.1 --gamma 0 --lamda 50\
     --data_path ./data/labling/0.5b-sqa-labling/merge.json  \
     --video_folder ./data/video \
     --mm_tunable_parts="mm_vision_tower,mm_mlp_adapter,mm_language_model" \
@@ -23,7 +23,7 @@ ACCELERATE_CPU_AFFINITY=1 torchrun --nproc_per_node=8 --nnodes=1  \
     --mm_patch_merge_type spatial_unpad \
     --bf16 True \
     --run_name ours-0.5b-qwen-lora-sdo-g0.1-lr1e5-lmd50-3epo \
-    --output_dir "./checkpoints/ours-0.5b-qwen-lora-sdo-g0-alpa1.0-alpq1.2-lr3e5-lmd50-2epo" \
+    --output_dir "./checkpoints/ours-0.5b-qwen-lora-sdo-g0-alpa1.0-alpq1.2-lr1e5-lmd50-2epo-new" \
     --num_train_epochs 2 \
     --per_device_train_batch_size 2 \
     --per_device_eval_batch_size 4 \
@@ -32,7 +32,7 @@ ACCELERATE_CPU_AFFINITY=1 torchrun --nproc_per_node=8 --nnodes=1  \
     --save_strategy "steps" \
     --save_total_limit 1 \
     --save_steps 1000000 \
-    --learning_rate 3e-5 \
+    --learning_rate 1e-5 \
     --weight_decay 0. \
     --warmup_ratio 0.15 \
     --lr_scheduler_type "linear" \

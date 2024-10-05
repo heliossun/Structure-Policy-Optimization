@@ -3,7 +3,7 @@ ACCELERATE_CPU_AFFINITY=1 torchrun --nproc_per_node=8 --nnodes=1  \
     --lora_enable True --lora_r 128 --lora_alpha 256 --mm_projector_lr 2e-6 \
     --deepspeed scripts/zero3.json \
     --model_name_or_path ZachSun/sqllava-qwen-ov-7b \
-    --version qwen_sq\
+    --version qwen_1_5\
     --sdo_alpha_a 1.0 --sdo_alpha_q 1.0 --beta 0.1 --gamma 0.1 --lamda 50\
     --data_path ./data/labling/7b-sqa-labling/merge.json \
     --video_folder ./data/video \
