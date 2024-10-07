@@ -1,7 +1,7 @@
 ACCELERATE_CPU_AFFINITY=1 torchrun --nproc_per_node=16 --nnodes=1 \
     llava/train/train_mem.py \
     --lora_enable True --lora_r 128 --lora_alpha 256 --mm_projector_lr 5e-6 \
-    --deepspeed scripts/zero3_offload.json \
+    --deepspeed scripts/zero3.json \
     --model_name_or_path lmms-lab/llava-onevision-qwen2-7b-ov \
     --version qwen_sq\
     --data_path ./data/ours_interleave.json \

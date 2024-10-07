@@ -1,7 +1,7 @@
 ACCELERATE_CPU_AFFINITY=1 torchrun --nproc_per_node=8 --nnodes=1  \
     llava/train/train_sdo.py \
     --lora_enable True --lora_r 128 --lora_alpha 256 --mm_projector_lr 2e-6 \
-    --deepspeed scripts/zero3_offload.json \
+    --deepspeed scripts/zero3.json \
     --model_name_or_path ZachSun/sqllava-qwen-ov-7b \
     --version qwen_1_5\
     --sdo_alpha_a 1.0 --sdo_alpha_q 1.0 --beta 0.1 --gamma 0 --lamda 50\
@@ -25,7 +25,7 @@ ACCELERATE_CPU_AFFINITY=1 torchrun --nproc_per_node=8 --nnodes=1  \
     --run_name ours-7b-qwen-lora-sdo-g0-lr1e5-lmd50-3epo \
     --output_dir "./checkpoints/ours-7b-qwen-lora-sdo-g0-lr1e5-lmd50-2epo-new" \
     --num_train_epochs 2 \
-    --per_device_train_batch_size 2 \
+    --per_device_train_batch_size 1 \
     --per_device_eval_batch_size 4 \
     --gradient_accumulation_steps 16 \
     --evaluation_strategy "no" \
