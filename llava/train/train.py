@@ -1375,7 +1375,7 @@ class LazySupervisedDataset(Dataset):
                 frame_files.sort()  # Ensure the frames are sorted if they are named sequentially
 
                 # TODO: Hard CODE: Determine the indices for uniformly sampling 10 frames
-                num_frames_to_sample = 10
+                num_frames_to_sample = self.data_args.frames_upbound
                 total_frames = len(frame_files)
                 sampled_indices = np.linspace(0, total_frames - 1, num_frames_to_sample, dtype=int)
 

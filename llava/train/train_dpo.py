@@ -136,7 +136,7 @@ class DataArguments:
     image_split_resolution: int = 384
     input_prompt: Optional[str] = field(default=None)
     refine_prompt: Optional[bool] = field(default=False)
-    frames_upbound: Optional[int] = field(default=0)
+    frames_upbound: Optional[int] = field(default=10)
     num_sample: Optional[int] = field(default=None)
 
 
@@ -1150,8 +1150,10 @@ class DPODataset(Dataset):
 
                 # TODO: Hard CODE: Determine the indices for uniformly sampling 10 frames
                 total_frames = len(frame_files)
-                sampled_indices = np.linspace(0, total_frames - 1, min(total_frames, 10), dtype=int)
+                num_frames_to_sample = self.data_args.frames_upbound
+                sampled_indices = np.linspace(0, total_frames - 1, min(total_frames,num_frames_to_sample), dtype=int)
 
+                
                 # Read and store the sampled frames
                 video = []
                 for idx in sampled_indices:

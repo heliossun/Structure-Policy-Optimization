@@ -46,7 +46,7 @@ ACCELERATE_CPU_AFFINITY=1 torchrun --nproc_per_node=16 --nnodes=1 \
     --torch_compile True \
     --torch_compile_backend "inductor" \
     --dataloader_drop_last True \
-    --frames_upbound 32 \
+    --frames_upbound 10 \
     --ToME False \
     --merging_r 16 \
     --trend -1.0 \
