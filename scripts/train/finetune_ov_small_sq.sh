@@ -1,10 +1,10 @@
 ACCELERATE_CPU_AFFINITY=1 torchrun --nproc_per_node=8 --nnodes=1 \
     llava/train/train_mem.py \
-    --lora_enable True --lora_r 128 --lora_alpha 256 --mm_projector_lr 5e-6 \
+    --lora_enable True --lora_r 128 --lora_alpha 256 --mm_projector_lr 1e-6 \
     --deepspeed scripts/zero3.json \
     --model_name_or_path lmms-lab/llava-onevision-qwen2-0.5b-ov \
     --version qwen_sq\
-    --data_path ./data/ours_interleave.json \
+    --data_path ./data/ours_interleave_iv.json \
     --image_folder ./data/image \
     --video_folder ./data/video \
     --mm_tunable_parts="mm_vision_tower,mm_mlp_adapter,mm_language_model" \
@@ -23,7 +23,7 @@ ACCELERATE_CPU_AFFINITY=1 torchrun --nproc_per_node=8 --nnodes=1 \
     --mm_patch_merge_type spatial_unpad \
     --bf16 True \
     --run_name test \
-    --output_dir "./checkpoints/sqllava-lora-qwen-0.5b-interleave-2e5-0.5sq" \
+    --output_dir "./checkpoints/sqllava-lora-qwen-0.5b-interleave-1e5-0.3sq" \
     --num_train_epochs 1 \
     --per_device_train_batch_size 1 \
     --per_device_eval_batch_size 4 \
@@ -32,7 +32,7 @@ ACCELERATE_CPU_AFFINITY=1 torchrun --nproc_per_node=8 --nnodes=1 \
     --save_strategy "steps" \
     --save_steps 100000 \
     --save_total_limit 1 \
-    --learning_rate 2e-5 \
+    --learning_rate 1e-5 \
     --weight_decay 0. \
     --warmup_ratio 0.1 \
     --lr_scheduler_type "cosine" \
@@ -50,5 +50,5 @@ ACCELERATE_CPU_AFFINITY=1 torchrun --nproc_per_node=8 --nnodes=1 \
     --ToME False \
     --merging_r 16 \
     --trend -1.0 \
-    --sq_r 0.5
+    --sq_r 0.3
 # You can delete the sdpa attn_implementation if you want to use flash attn
