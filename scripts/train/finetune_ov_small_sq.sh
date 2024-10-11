@@ -50,5 +50,5 @@ ACCELERATE_CPU_AFFINITY=1 torchrun --nproc_per_node=8 --nnodes=1 \
     --ToME False \
     --merging_r 16 \
     --trend -1.0 \
-    --sq_r 0.5
+    --sq_r 0.3
 # You can delete the sdpa attn_implementation if you want to use flash attn
