@@ -1,4 +1,4 @@
-ACCELERATE_CPU_AFFINITY=1 torchrun --nproc_per_node=16 --nnodes=1 \
+ACCELERATE_CPU_AFFINITY=1 torchrun --nproc_per_node=8 --nnodes=1 \
     llava/train/train_mem.py \
     --lora_enable True --lora_r 128 --lora_alpha 256 --mm_projector_lr 1e-6 \
     --deepspeed scripts/zero3.json \
@@ -23,9 +23,9 @@ ACCELERATE_CPU_AFFINITY=1 torchrun --nproc_per_node=16 --nnodes=1 \
     --mm_patch_merge_type spatial_unpad \
     --bf16 True \
     --run_name test \
-    --output_dir "./checkpoints/sqllava-lora-qwen-7b-interleave-1e5-0.5sq" \
+    --output_dir "./checkpoints/sqllava-lora-qwen-7b-interleave-1e5-0.3sq-30frm" \
     --num_train_epochs 1 \
-    --per_device_train_batch_size 1 \
+    --per_device_train_batch_size 2 \
     --per_device_eval_batch_size 4 \
     --gradient_accumulation_steps 8 \
     --evaluation_strategy "no" \
@@ -34,7 +34,7 @@ ACCELERATE_CPU_AFFINITY=1 torchrun --nproc_per_node=16 --nnodes=1 \
     --save_total_limit 1 \
     --learning_rate 1e-5 \
     --weight_decay 0. \
-    --warmup_ratio 0.15 \
+    --warmup_ratio 0.1 \
     --lr_scheduler_type "cosine" \
     --logging_steps 1 \
     --tf32 True \
@@ -46,9 +46,9 @@ ACCELERATE_CPU_AFFINITY=1 torchrun --nproc_per_node=16 --nnodes=1 \
     --torch_compile True \
     --torch_compile_backend "inductor" \
     --dataloader_drop_last True \
-    --frames_upbound 10 \
+    --frames_upbound 30 \
     --ToME False \
     --merging_r 16 \
     --trend -1.0 \
-    --sq_r 0.5
+    --sq_r 0.3
 # You can delete the sdpa attn_implementation if you want to use flash attn
