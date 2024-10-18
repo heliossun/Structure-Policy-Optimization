@@ -1,30 +1,30 @@
-# CHUNKS: Globally maximum number of 4-GPUs
-# IDX1,IDX2: manually set them when run this file, 
-# E.g., IDX1=0 and IDX2=1 on the first node, on the second node will be 2 and 3
 
-CHUNKS=2
-IDX1=0
-IDX2=1
 
-CKPT="7b-sqa-labling"
 
-CUDA_VISIBLE_DEVICES=0,1,2,3 python scripts/preference_labeling/llava-ov-72b.py \
+CHUNKS=16
+CKPT="0.5b-sqa-labling"
+
+
+iDX=0
+CUDA_VISIBLE_DEVICES=0,1 python scripts/preference_labeling/llava-ov-72b.py \
   --rule scripts/preference_labeling/rule.json \
   --video_folder ./data/video \
   --qafile ./data/sqllava-ov-7b/merge.json \
-  --answers-file ${CHUNKS}_$IDX1.json \
+  --answers-file ${CHUNKS}_${IDX}.json \
   --out_dir ./data/labling/$CKPT \
   --num-chunks $CHUNKS \
-  --chunk-idx $IDX1 &
+  --chunk-idx $IDX &
 
-CUDA_VISIBLE_DEVICES=4,5,6,7 python scripts/preference_labeling/llava-ov-72b.py \
+iDX=1
+CUDA_VISIBLE_DEVICES=2,3 python scripts/preference_labeling/llava-ov-72b.py \
   --rule scripts/preference_labeling/rule.json \
   --video_folder ./data/video \
-  --qafile ./data/sqllava-ov-7b/merge.json \
-  --answers-file ${CHUNKS}_$IDX2.json \
+  --image_folder ./data/image \
+  --qafile ./data/sqllava-ov-0.5b/merge.json \
+  --answers-file ${CHUNKS}_${IDX}.json \
   --out_dir ./data/labling/$CKPT \
   --num-chunks $CHUNKS \
-  --chunk-idx $IDX2
+  --chunk-idx $IDX
 
 #wait
 

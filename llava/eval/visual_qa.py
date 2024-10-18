@@ -2,6 +2,7 @@ from llava.model.builder import load_pretrained_model
 from llava.mm_utils import get_model_name_from_path, process_images, tokenizer_image_token
 from llava.constants import IMAGE_TOKEN_INDEX, DEFAULT_IMAGE_TOKEN, DEFAULT_IM_START_TOKEN, DEFAULT_IM_END_TOKEN, IGNORE_INDEX
 from llava.conversation import conv_templates, SeparatorStyle
+from llava.utils import rank0_print
 import os
 import torch
 import cv2
@@ -48,7 +49,7 @@ def load_frames(video_file, num_frames_to_sample=10):
                 frame = img.convert("RGB")
                 video.append(frame)
         except IOError:
-            print(f"Failed to read frame at path: {frame_path}")
+            rank0_print(f"Failed to read frame at path: {frame_path}")
     return video
 
 def extract_frames(video_path, num_frames=8):
@@ -78,48 +79,32 @@ def eval_model(args):
     tokenizer, model, image_processor, max_length = load_pretrained_model(model_path, args.model_base, args.model_name, device_map=device_map,lora_pt=lora_pt)
 
     model.eval()
-    old_dt = json.load(open(args.question_file,'r'))
-    data_dict=[]
-    for d in old_dt:
-        if 'video' in d:
-            data_dict.append(d)
-        elif 'image' in d:
-            image_file = d["image"]
-            if type(image_file) is list:
-                if len(image_file) > 1:
-                    continue
-                else:
-                    data_dict.append(d)
-            else:
-                data_dict.append(d)
-    del old_dt
-    print("Total image and video samples: ",len(data_dict))
-    if len(data_dict)>args.sampleNum:
-        print(f"random sample {args.sampleNum} items")
-        data_dict = random.sample(data_dict,args.sampleNum)
+    data_dict = json.load(open(args.question_file,'r'))
+
     data_dict = get_chunk(data_dict, args.num_chunks, args.chunk_idx)
-    
+    rank0_print("chunk size:",len(data_dict))
     if not os.path.exists(args.out_dir):
     # If it doesn't exist, create the directory
         os.makedirs(args.out_dir)
     out_file = open(os.path.join(args.out_dir,args.answers_file), 'a',encoding='utf-8')
-    
-    
+
+
     video_file=None
     image_file=None
     # we only use single image and video data for preference data generation
-    for source in data_dict:
+    for source in tqdm(data_dict):
+        token_len=0
         if 'video' in source:
             video_file = source["video"]
             video = os.path.join(args.video_folder, video_file)
-            video_frames = load_frames(video)
+            video_frames = load_frames(video,32)
             image_tensors = process_images(video_frames, image_processor, model.config)
             image_sizes = [frame.size for frame in video_frames]
         elif 'image' in source:
             image_file = source["image"]
             if type(image_file) is list:
-                imgs=[Image.open(os.path.join(args.image_folder, img_f)).convert("RGB") for img_f in image_file]     
-                
+                imgs=[Image.open(os.path.join(args.image_folder, img_f)).convert("RGB") for img_f in image_file]
+
                 if len(image_file) > 1:
                     continue
                 else:
@@ -129,17 +114,13 @@ def eval_model(args):
                 img = Image.open(os.path.join(args.image_folder, image_file)).convert("RGB")
                 image_sizes = [img.size]
                 image_tensors = process_images([img], image_processor, model.config)
-       
         image_tensors = [_image.to(dtype=torch.float16, device=device) for _image in image_tensors]
         conv_template = "qwen_sq"
         fq=source['conversations'][0]['value'].replace('<image>\n','')
-        fq=source['conversations'][0]['value'].replace('\n<image>','')
+        fq=fq.replace('\n<image>','')
         fqs = f"{DEFAULT_IMAGE_TOKEN}\n{fq}"
         first_answer=source['conversations'][1]['value']
         conv = copy.deepcopy(conv_templates[conv_template])
-        
-
-
         conv.clear_message()
 
         # SQ
@@ -147,7 +128,7 @@ def eval_model(args):
         conv.append_message(conv.roles[1], first_answer)
         conv.append_message(conv.roles[2], None)
         prompt = conv.get_prompt()
-        #print(prompt)
+        #rank0_print(prompt)
         input_ids = tokenizer_image_token(prompt, tokenizer, IMAGE_TOKEN_INDEX, return_tensors="pt").unsqueeze(
             0).to(device)
 
@@ -171,13 +152,13 @@ def eval_model(args):
         conv.clear_message()
 
         for q in questions:
-            #print("questions: ",q)
+            #rank0_print("questions: ",q)
             conv.append_message(conv.roles[0], fqs)
             conv.append_message(conv.roles[1], first_answer)
             conv.append_message(conv.roles[2], q)
             conv.append_message(conv.roles[1],None)
             prompt = conv.get_prompt()
-            #print(prompt)
+            #rank0_print(prompt)
             input_ids = tokenizer_image_token(prompt, tokenizer, IMAGE_TOKEN_INDEX, return_tensors="pt").unsqueeze(
                 0).to(device)
             for i in range(2):
@@ -194,25 +175,29 @@ def eval_model(args):
                 )
                 answer = tokenizer.batch_decode(cont, skip_special_tokens=True)[0]
                 answers.append(answer)
+                token_len+=input_ids.shape[1]+cont.shape[1]
         if video_file:
             visual_modality="video"
             visual_file=video_file
+            token_len+=196*len(video_frames)*2
         else:
             visual_modality="image"
             visual_file=image_file
+            token_len+=7290*2
         out_p={"id": source['id'],
                visual_modality: visual_file,
                "sampler": [fqs,first_answer],
                "questions": questions,
-               "answers":answers}
-        
+               "answers":answers,
+               "token_len":token_len,}
+
         try:
             out_file.write(json.dumps(out_p)+'\n')
             out_file.flush()
         except:
             pass
     out_file.close()
-    
+
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
