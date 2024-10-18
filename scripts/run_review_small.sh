@@ -25,6 +25,10 @@ CUDA_VISIBLE_DEVICES=2,3 python -m scripts.preference_labeling.llava-ov-72b \
   --num-chunks $CHUNKS \
   --chunk-idx $IDX
 
+## Add more python job after this
+
+
+
 #wait
 
 # output_file=./data/7b_selfQA_labeling-72b-chat.json

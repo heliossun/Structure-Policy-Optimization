@@ -88,3 +88,5 @@ CUDA_VISIBLE_DEVICES=$IDX python -m llava.eval.visual_qa \
     --out_dir ./data/selfqa/$CKPT \
     --num-chunks $CHUNKS \
     --chunk-idx $IDX &
+
+## Add more python job after this
