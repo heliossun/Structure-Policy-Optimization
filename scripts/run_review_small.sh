@@ -1,5 +1,5 @@
 
-CHUNKS=16
+CHUNKS=16    # change this to the number of available GPUs / for multi-gpu node, add & between each job
 CKPT="0.5b-sqa-labling"
 
 
