@@ -176,6 +176,7 @@ def eval_model(args):
                 answer = tokenizer.batch_decode(cont, skip_special_tokens=True)[0]
                 answers.append(answer)
                 token_len+=input_ids.shape[1]+cont.shape[1]
+            conv.clear_message()
         if video_file:
             visual_modality="video"
             visual_file=video_file
