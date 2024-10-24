@@ -1,4 +1,4 @@
-ACCELERATE_CPU_AFFINITY=1 torchrun --nproc_per_node=8 --nnodes=1  \
+ACCELERATE_CPU_AFFINITY=1 torchrun --nproc_per_node=16 --nnodes=1  \
     llava/train/train_dpo.py \
     --lora_enable True --lora_r 64 --lora_alpha 128 --mm_projector_lr 2e-6 \
     --deepspeed scripts/zero3.json \
@@ -28,7 +28,7 @@ ACCELERATE_CPU_AFFINITY=1 torchrun --nproc_per_node=8 --nnodes=1  \
     --num_train_epochs 2 \
     --per_device_train_batch_size 1 \
     --per_device_eval_batch_size 4 \
-    --gradient_accumulation_steps 16 \
+    --gradient_accumulation_steps 8 \
     --evaluation_strategy "no" \
     --save_strategy "epoch" \
     --save_steps 1000000 \
