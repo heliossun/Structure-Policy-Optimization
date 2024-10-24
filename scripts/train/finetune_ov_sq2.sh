@@ -1,14 +1,14 @@
-ACCELERATE_CPU_AFFINITY=1 torchrun --nproc_per_node=8 --nnodes=1 \
+ACCELERATE_CPU_AFFINITY=1 torchrun --nproc_per_node=16 --nnodes=1 \
     llava/train/train_mem.py \
-    --lora_enable True --lora_r 128 --lora_alpha 256 --mm_projector_lr 2e-6 \
+    --lora_enable True --lora_r 128 --lora_alpha 256 --mm_projector_lr 2e-5 \
     --deepspeed scripts/zero3.json \
-    --model_name_or_path lmms-lab/llava-onevision-qwen2-7b-ov \
+    --model_name_or_path lmms-lab/llava-onevision-qwen2-7b-si \
     --version qwen_sq\
-    --data_path ./data/m4-instruct-anno+videov2.json \
+    --data_path ./data/ours_interleave_iv.json \
     --image_folder ./data/image \
     --video_folder ./data/video \
     --mm_tunable_parts="mm_vision_tower,mm_mlp_adapter,mm_language_model" \
-    --mm_vision_tower_lr 4e-5 \
+    --mm_vision_tower_lr 2e-4 \
     --vit_lora_enable \
     --lora_alpha_vit 128 \
     --lora_r_vit 64 \
@@ -23,30 +23,30 @@ ACCELERATE_CPU_AFFINITY=1 torchrun --nproc_per_node=8 --nnodes=1 \
     --mm_patch_merge_type spatial_unpad \
     --bf16 True \
     --run_name test \
-    --output_dir "./checkpoints/sqllava-lora-qwen-7b-ovVideo-v2-4e5" \
+    --output_dir "./checkpoints/sqllava-lora-qwen-7b-interleave-1e5-0.3sq-30frm-si2ov" \
     --num_train_epochs 1 \
-    --per_device_train_batch_size 2 \
+    --per_device_train_batch_size 1 \
     --per_device_eval_batch_size 4 \
     --gradient_accumulation_steps 8 \
     --evaluation_strategy "no" \
     --save_strategy "steps" \
     --save_steps 100000 \
     --save_total_limit 1 \
-    --learning_rate 4e-5 \
+    --learning_rate 2e-4 \
     --weight_decay 0. \
-    --warmup_ratio 0.03 \
+    --warmup_ratio 0.1 \
     --lr_scheduler_type "cosine" \
     --logging_steps 1 \
     --tf32 True \
     --model_max_length 32768 \
     --gradient_checkpointing True \
-    --dataloader_num_workers 4 \
+    --dataloader_num_workers 8 \
     --lazy_preprocess True \
     --report_to None \
     --torch_compile True \
     --torch_compile_backend "inductor" \
     --dataloader_drop_last True \
-    --frames_upbound 32 \
+    --frames_upbound 30 \
     --ToME False \
     --merging_r 16 \
     --trend -1.0 \
