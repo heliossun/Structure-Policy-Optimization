@@ -1151,7 +1151,7 @@ class DPODataset(Dataset):
                 # TODO: Hard CODE: Determine the indices for uniformly sampling 10 frames
                 total_frames = len(frame_files)
                 num_frames_to_sample = self.data_args.frames_upbound
-                sampled_indices = np.linspace(0, total_frames - 1, min(total_frames,num_frames_to_sample), dtype=int)
+                sampled_indices = np.linspace(0, total_frames - 1, num_frames_to_sample, dtype=int)
                 
                 # Read and store the sampled frames
                 video = []

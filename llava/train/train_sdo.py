@@ -1225,7 +1225,7 @@ class SDODataset(Dataset):
                 # TODO: Hard CODE: Determine the indices for uniformly sampling 10 frames
                 total_frames = len(frame_files)
                 num_frames_to_sample = self.data_args.frames_upbound
-                sampled_indices = np.linspace(0, total_frames - 1, min(total_frames,num_frames_to_sample), dtype=int)
+                sampled_indices = np.linspace(0, total_frames - 1, num_frames_to_sample, dtype=int)
                 #sampled_indices = np.linspace(0, total_frames - 1, min(total_frames,10), dtype=int)
 
                 # Read and store the sampled frames
@@ -1861,7 +1861,6 @@ def train(attn_implementation=None):
     trainer = LLaVASDOTrainer(
         model,
         ref_model,
-        vision_tower,
         args=training_args,
         sdo_alpha_a=training_args.sdo_alpha_a,
         sdo_alpha_q=training_args.sdo_alpha_q,

@@ -178,7 +178,6 @@ class SDOTrainer(Trainer):
         self,
         model: Optional[Union[PreTrainedModel, nn.Module, str]] = None,
         ref_model: Optional[Union[PreTrainedModel, nn.Module, str]] = None,
-        vision_tower: Optional[Union[PreTrainedModel, nn.Module, str]] = None,
         sdo_alpha_a: float = 1.0,
         sdo_alpha_q: float = 1.0,
         beta: float = 0.1,
@@ -237,7 +236,6 @@ class SDOTrainer(Trainer):
         # Initialize this variable to False. This helps tracking the case when `peft_module_casting_to_bf16`
         # has been called in order to properly call autocast if needed.
         self._peft_has_been_casted_to_bf16 = False
-        self.vision_tower=vision_tower
         if generate_during_eval and not is_wandb_available():
             raise ValueError("`generate_during_eval=True` requires Weights and Biases to be installed." " Please install `wandb` to resolve.")
 
@@ -1319,8 +1317,6 @@ class SDOTrainer(Trainer):
             model.save_pretrained(output_dir, state_dict=state_dict)
             torch.save(non_lora_state_dict, os.path.join(output_dir, "non_lora_trainables.bin"))
             # if training_args.vit_lora_enable:
-            v_tower_lora = get_peft_state_maybe_zero_3(self.vision_tower.named_parameters(), training_args.lora_bias)
-            self.vision_tower.save_pretrained(os.path.join(output_dir, 'Vit-lora'), state_dict=v_tower_lora)
     @wraps(Trainer.push_to_hub)
     def push_to_hub(self, commit_message: Optional[str] = "End of training", blocking: bool = True, **kwargs) -> str:
         """

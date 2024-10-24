@@ -191,7 +191,6 @@ class DPOTrainer(Trainer):
         self,
         model: Optional[Union[PreTrainedModel, nn.Module, str]] = None,
         ref_model: Optional[Union[PreTrainedModel, nn.Module, str]] = None,
-        vision_tower: Optional[Union[PreTrainedModel, nn.Module, str]] = None,
         dpo_alpha: float = 1.0,
         beta: float = 0.1,
         gamma: float = 0.1,
@@ -1229,8 +1228,6 @@ class DPOTrainer(Trainer):
             model.save_pretrained(output_dir, state_dict=state_dict)
             torch.save(non_lora_state_dict, os.path.join(output_dir, "non_lora_trainables.bin"))
             # if training_args.vit_lora_enable:
-            v_tower_lora = get_peft_state_maybe_zero_3(self.vision_tower.named_parameters(), training_args.lora_bias)
-            self.vision_tower.save_pretrained(os.path.join(output_dir, 'Vit-lora'), state_dict=v_tower_lora)
     @wraps(Trainer.push_to_hub)
     def push_to_hub(self, commit_message: Optional[str] = "End of training", blocking: bool = True, **kwargs) -> str:
         """
