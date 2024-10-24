@@ -36,7 +36,7 @@ import transformers
 import tokenizers
 import sys
 
-sys.path.insert(0, '/home/gs4288/guohao/LLaVA-NeXT')
+sys.path.insert(0, '/home/ztao/guohao/LLaVA-NeXT')
 from llava.constants import IGNORE_INDEX, DEFAULT_IMAGE_TOKEN, DEFAULT_IM_START_TOKEN, DEFAULT_IM_END_TOKEN, \
     IMAGE_TOKEN_INDEX
 from torch.utils.data import Dataset
@@ -136,7 +136,7 @@ class DataArguments:
     image_split_resolution: int = 384
     input_prompt: Optional[str] = field(default=None)
     refine_prompt: Optional[bool] = field(default=False)
-    frames_upbound: Optional[int] = field(default=10)
+    frames_upbound: Optional[int] = field(default=0)
     num_sample: Optional[int] = field(default=None)
 
 
@@ -1152,7 +1152,6 @@ class DPODataset(Dataset):
                 total_frames = len(frame_files)
                 num_frames_to_sample = self.data_args.frames_upbound
                 sampled_indices = np.linspace(0, total_frames - 1, min(total_frames,num_frames_to_sample), dtype=int)
-
                 
                 # Read and store the sampled frames
                 video = []
@@ -1851,7 +1850,6 @@ def train(attn_implementation=None):
     trainer = LLaVADPOTrainer(
         model,
         ref_model,
-        vision_tower,
         args=training_args,
         dpo_alpha=training_args.dpo_alpha,
         beta=training_args.beta,

@@ -2,10 +2,11 @@ ACCELERATE_CPU_AFFINITY=1 torchrun --nproc_per_node=8 --nnodes=1  \
     llava/train/train_sdo.py \
     --lora_enable True --lora_r 128 --lora_alpha 256 --mm_projector_lr 2e-6 \
     --deepspeed scripts/zero3.json \
-    --model_name_or_path ZachSun/sqllava-qwen-ov-0.5b \
+    --model_name_or_path ZachSun/ours-qwen-0.5b-interleave \
     --version qwen_1_5\
-    --sdo_alpha_a 1.0 --sdo_alpha_q 1 --beta 0.1 --gamma 0 --lamda 50\
-    --data_path ./data/labling/0.5b-sqa-labling/merge.json  \
+    --sdo_alpha_a 1.0 --sdo_alpha_q 1.0 --beta 0.1 --gamma 0 --lamda 50\
+    --data_path ./data/labling/0.5b-sqa-labling/merge.json \
+    --image_folder ./data/image \
     --video_folder ./data/video \
     --mm_tunable_parts="mm_vision_tower,mm_mlp_adapter,mm_language_model" \
     --mm_vision_tower_lr 5e-6 \
@@ -22,19 +23,19 @@ ACCELERATE_CPU_AFFINITY=1 torchrun --nproc_per_node=8 --nnodes=1  \
     --image_grid_pinpoints  "(1x1),...,(6x6)" \
     --mm_patch_merge_type spatial_unpad \
     --bf16 True \
-    --run_name ours-0.5b-qwen-lora-sdo-g0.1-lr1e5-lmd50-3epo \
-    --output_dir "./checkpoints/ours-0.5b-qwen-lora-sdo-g0-alpa1.0-alpq1.2-lr1e5-lmd50-2epo-new" \
+    --run_name ours-7b-qwen-lora-sdo-g0-lr1e5-lmd50-3epo \
+    --output_dir "./checkpoints/ours-7b-qwen-lora-sdo-g0-lr1e5-lmd50-2epo-newPref" \
     --num_train_epochs 2 \
-    --per_device_train_batch_size 2 \
+    --per_device_train_batch_size 1 \
     --per_device_eval_batch_size 4 \
-    --gradient_accumulation_steps 8 \
+    --gradient_accumulation_steps 16 \
     --evaluation_strategy "no" \
     --save_strategy "steps" \
-    --save_total_limit 1 \
     --save_steps 1000000 \
+    --save_total_limit 1 \
     --learning_rate 1e-5 \
     --weight_decay 0. \
-    --warmup_ratio 0.15 \
+    --warmup_ratio 0.1 \
     --lr_scheduler_type "linear" \
     --logging_steps 1 \
     --tf32 True \
@@ -44,3 +45,4 @@ ACCELERATE_CPU_AFFINITY=1 torchrun --nproc_per_node=8 --nnodes=1  \
     --lazy_preprocess True \
     --report_to None \
     --dataloader_drop_last True \
+    --frames_upbound 30 \

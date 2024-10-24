@@ -128,7 +128,7 @@ class DataArguments:
     image_split_resolution: int = 384
     input_prompt: Optional[str] = field(default=None)
     refine_prompt: Optional[bool] = field(default=False)
-    frames_upbound: Optional[int] = field(default=10)
+    frames_upbound: Optional[int] = field(default=0)
     num_sample: Optional[int] = field(default=None)
 
 
@@ -487,7 +487,25 @@ def make_conv(prompt, answer):
             "value": answer,
         },
     ]
-
+def make_conv2(prompt, answer,answer2):
+    return [
+        {
+            "from": "human",
+            "value": prompt,
+        },
+        {
+            "from": "gpt",
+            "value": answer,
+        },
+        {
+            "from": "human",
+            "value": prompt,
+        },
+        {
+            "from": "gpt",
+            "value": answer2,
+        },
+    ]
 
 def preprocess_gemma(sources: List[List[Dict[str, str]]], tokenizer: transformers.PreTrainedTokenizer, has_image: bool = False) -> Dict:
     conv: conversation_lib.Conversation = conversation_lib.default_conversation.copy()
@@ -1090,6 +1108,8 @@ class SDODataset(Dataset):
             #TODO: modify this to SDO: two conversations
             cur_len = (len(sample['sampler'][0].split())+len(sample['sampler'][1].split())+
                        len(sample["c_pref"]['q'].split()) + len(sample["c_pref"]['a_w'].split()) +
+                       len(sample["c_rej"]['q'].split()) + len(sample["c_rej"]['a_w'].split())+
+                       len(sample["c_pref"]['q'].split()) + len(sample["c_pref"]['a_l'].split()) +
                        len(sample["c_rej"]['q'].split()) + len(sample["c_rej"]['a_l'].split()))
             # If the sample includes a video, the length is positive; otherwise, it is negative
             cur_len = cur_len if ("video" in sample or "image" in sample) else -cur_len
@@ -1206,6 +1226,7 @@ class SDODataset(Dataset):
                 total_frames = len(frame_files)
                 num_frames_to_sample = self.data_args.frames_upbound
                 sampled_indices = np.linspace(0, total_frames - 1, min(total_frames,num_frames_to_sample), dtype=int)
+                #sampled_indices = np.linspace(0, total_frames - 1, min(total_frames,10), dtype=int)
 
                 # Read and store the sampled frames
                 video = []
@@ -1245,8 +1266,10 @@ class SDODataset(Dataset):
             data_dict['prompt_a'] = data_dict['sampler'][1]
             data_dict["chosen_prompt"] = prompt_acpt
             data_dict["rejected_prompt"] = prompt_rej
-            data_dict["chosen"]=data_dict["c_pref"]['a_w']
-            data_dict["rejected"]=data_dict["c_rej"]['a_l']
+            data_dict["cp_chosen"]=data_dict["c_pref"]['a_w']
+            data_dict["rp_chosen"]=data_dict["c_rej"]['a_w']
+            data_dict["cp_reject"]=data_dict["c_pref"]['a_l']
+            data_dict["rp_reject"]=data_dict["c_rej"]['a_l']
         else:
             prompt = None
 
@@ -1298,7 +1321,7 @@ class SDODataCollator(DPODataCollatorWithPadding):
             padded_batch[attn_k] = padded_batch[k].ne(self.tokenizer.pad_token_id)
         return padded_batch
 
-    def tokenize_batch_element(self, sampler_q: str, sampler_a: str, chosen_prompt: str, rejected_prompt: str, chosen: str, rejected: str, has_image: bool = True) -> Dict:
+    def tokenize_batch_element(self, feature) -> Dict:
         """Tokenize a single batch element.
 
         At this stage, we don't convert to PyTorch tensors yet; we just handle the truncation
@@ -1309,11 +1332,19 @@ class SDODataCollator(DPODataCollatorWithPadding):
             the sum of the length of the prompt and the chosen/rejected response, with
             label_pad_token_id  for the prompt tokens.
         """
-        # import pdb; pdb.set_trace()
+        sampler_q=feature['prompt_q']
+        sampler_a=feature['prompt_a']
+        chosen_prompt = feature["chosen_prompt"]
+        rejected_prompt = feature["rejected_prompt"]
+        winQ_winA=feature["cp_chosen"]
+        winQ_losA=feature["cp_reject"]
+        losQ_winA=feature["rp_chosen"]
+        losQ_losA=feature["rp_reject"]
+        has_image=feature['has_image']
         batch = {}
         sampler_sources=make_conv(sampler_q,sampler_a)
-        chosen_sources = make_conv(chosen_prompt, chosen)   # chosen answer based on chosen question
-        rejected_sources = make_conv(rejected_prompt, rejected) # rejected answer based on rejected question
+        chosen_sources = make_conv2(chosen_prompt, winQ_winA,winQ_losA)   # chosen answer based on chosen question
+        rejected_sources = make_conv2(rejected_prompt, losQ_winA,losQ_losA) # rejected answer based on rejected question
         #only sampler has system message
         sampler_data_dict = preprocess([sampler_sources], self.tokenizer, has_image=has_image, sampler=True)
         chosen_data_dict = preprocess([chosen_sources], self.tokenizer, has_image=False)
@@ -1322,9 +1353,9 @@ class SDODataCollator(DPODataCollatorWithPadding):
         sampler_data_dict = {k: v[0] for k, v in sampler_data_dict.items()}
         chosen_data_dict = {k: v[0] for k, v in chosen_data_dict.items()}
         rejected_data_dict = {k: v[0] for k, v in rejected_data_dict.items()}
-        # print("sampler_data_dict: #####", sampler_data_dict)
-        # print("chosen_data_dict: +++++",chosen_data_dict)
-        # print("rejected_data_dict: -----",rejected_data_dict)
+        #print("sampler_data_dict: #####", sampler_data_dict)
+        #print("chosen_data_dict: +++++",chosen_data_dict)
+        #print("rejected_data_dict: -----",rejected_data_dict)
         for k, toks in {
             "sampler":sampler_data_dict,
             "chosen": chosen_data_dict,
@@ -1341,16 +1372,8 @@ class SDODataCollator(DPODataCollatorWithPadding):
         tokenized_batch = []
         Xs, keys = [], []
         for feature in features:
-            sampler_q=feature['prompt_q']
-            sampler_a=feature['prompt_a']
-            prompt_acpt = feature["chosen_prompt"]
-            prompt_rej = feature["rejected_prompt"]
-            chosen = feature["chosen"]
-            rejected = feature["rejected"]
-            has_image = feature["has_image"]
-
-
-            batch_element = self.tokenize_batch_element(sampler_q,sampler_a,prompt_acpt, prompt_rej, chosen, rejected, has_image=has_image)
+            
+            batch_element = self.tokenize_batch_element(feature)
             #rank0_print("<<<<<<<data batch:",batch_element.keys())
             tokenized_batch.append(batch_element)
 
