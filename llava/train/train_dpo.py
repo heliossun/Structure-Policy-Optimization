@@ -136,7 +136,7 @@ class DataArguments:
     image_split_resolution: int = 384
     input_prompt: Optional[str] = field(default=None)
     refine_prompt: Optional[bool] = field(default=False)
-    frames_upbound: Optional[int] = field(default=0)
+    frames_upbound: Optional[int] = field(default=10)
     num_sample: Optional[int] = field(default=None)
 
 
