@@ -89,10 +89,11 @@ def eval_model(args):
     out_file = open(os.path.join(args.out_dir,args.answers_file), 'a',encoding='utf-8')
 
 
-    video_file=None
-    image_file=None
+    
     # we only use single image and video data for preference data generation
     for source in tqdm(data_dict):
+        video_file=None
+        image_file=None
         token_len=0
         if 'video' in source:
             video_file = source["video"]
