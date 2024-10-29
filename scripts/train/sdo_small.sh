@@ -9,7 +9,7 @@ ACCELERATE_CPU_AFFINITY=1 torchrun --nproc_per_node=8 --nnodes=1  \
     --image_folder ./data/image \
     --video_folder ./data/video \
     --mm_tunable_parts="mm_vision_tower,mm_mlp_adapter,mm_language_model" \
-    --mm_vision_tower_lr 5e-6 \
+    --mm_vision_tower_lr 1e-5 \
     --vit_lora_enable \
     --lora_alpha_vit 64 \
     --lora_r_vit 32 \
@@ -33,7 +33,7 @@ ACCELERATE_CPU_AFFINITY=1 torchrun --nproc_per_node=8 --nnodes=1  \
     --save_strategy "steps" \
     --save_steps 1000000 \
     --save_total_limit 1 \
-    --learning_rate 8e-6 \
+    --learning_rate 1e-5 \
     --weight_decay 0. \
     --warmup_ratio 0.1 \
     --lr_scheduler_type "linear" \
