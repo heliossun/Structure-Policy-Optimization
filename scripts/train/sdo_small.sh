@@ -9,7 +9,7 @@ ACCELERATE_CPU_AFFINITY=1 torchrun --nproc_per_node=8 --nnodes=1  \
     --image_folder ./data/image \
     --video_folder ./data/video \
     --mm_tunable_parts="mm_vision_tower,mm_mlp_adapter,mm_language_model" \
-    --mm_vision_tower_lr 1e-5 \
+    --mm_vision_tower_lr 5e-6 \
     --vit_lora_enable \
     --lora_alpha_vit 64 \
     --lora_r_vit 32 \
@@ -24,8 +24,8 @@ ACCELERATE_CPU_AFFINITY=1 torchrun --nproc_per_node=8 --nnodes=1  \
     --mm_patch_merge_type spatial_unpad \
     --bf16 True \
     --run_name ours-7b-qwen-lora-sdo-g0-lr1e5-lmd50-2epo \
-    --output_dir "./checkpoints/ours-0.5b-qwen-lora-sdo-g0-lr1e5-aq1.2-b0.3-lmd50-2epo-newPrefv2" \
-    --num_train_epochs 2 \
+    --output_dir "./checkpoints/ours-0.5b-qwen-lora-sdo-g0-lr1e5-aq1.2-b0.3-lmd50-1epo-newPrefv2" \
+    --num_train_epochs 1 \
     --per_device_train_batch_size 1 \
     --per_device_eval_batch_size 4 \
     --gradient_accumulation_steps 16 \
@@ -33,7 +33,7 @@ ACCELERATE_CPU_AFFINITY=1 torchrun --nproc_per_node=8 --nnodes=1  \
     --save_strategy "steps" \
     --save_steps 1000000 \
     --save_total_limit 1 \
-    --learning_rate 1e-5 \
+    --learning_rate 5e-6 \
     --weight_decay 0. \
     --warmup_ratio 0.1 \
     --lr_scheduler_type "linear" \
