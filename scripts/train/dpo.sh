@@ -19,7 +19,7 @@ ACCELERATE_CPU_AFFINITY=1 torchrun --nproc_per_node=8 --nnodes=1  \
     --mm_use_im_start_end False \
     --mm_use_im_patch_token False \
     --group_by_modality_length True \
-    --image_aspect_ratio anyres_max_9 \
+    --image_aspect_ratio anyres_max_7 \
     --image_grid_pinpoints  "(1x1),...,(6x6)" \
     --mm_patch_merge_type spatial_unpad \
     --bf16 True \
