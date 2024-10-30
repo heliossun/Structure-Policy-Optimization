@@ -333,7 +333,6 @@ class SDOTrainer(Trainer):
         self.label_smoothing = label_smoothing
         self.loss_type = loss_type
         self._stored_metrics = defaultdict(lambda: defaultdict(list))
-
         self.dataset_num_proc = dataset_num_proc
 
         # Compute that only on the main process for faster data processing.
@@ -839,22 +838,33 @@ class SDOTrainer(Trainer):
             rejected_rewards = self.beta * (policy_rejected_logps.to(self.accelerator.device) - reference_rejected_logps.to(self.accelerator.device)).detach()
             return losses, chosen_rewards, rejected_rewards
         qs_losses, qs_chosen_rewards, qs_rejected_rewards = compute_loss(policy_chosen_qs_logps,reference_chosen_qs_logps,policy_rejected_qs_logps,reference_rejected_qs_logps) #q1 vs q2
-        policy_asrs=[policy_chosen_asr1_logps,policy_chosen_asr2_logps,policy_rejected_asr1_logps,policy_rejected_asr2_logps]
-        ref_asrs=[reference_chosen_asr1_logps,reference_chosen_asr2_logps,reference_rejected_asr1_logps,reference_rejected_asr2_logps]
+        policy_asrs=[policy_chosen_asr1_logps,policy_rejected_asr1_logps,policy_chosen_asr2_logps,policy_rejected_asr2_logps]
+        ref_asrs=[reference_chosen_asr1_logps,reference_rejected_asr1_logps,reference_chosen_asr2_logps,reference_rejected_asr2_logps]
         pairs_comp=['0 1','2 3', '0 3']
-        asr_losses, asr_chosen_rewards, asr_rejected_rewards = 0, 0, 0
-        for pair_comp in pairs_comp:
-            trajectories=pair_comp.split(' ')
-            asr_losses_, asr_chosen_rewards_, asr_rejected_rewards_ = compute_loss(policy_asrs[int(trajectories[0])],
-                                                                                ref_asrs[int(trajectories[0])],
-                                                                                policy_asrs[int(trajectories[1])],
-                                                                                ref_asrs[int(trajectories[1])])
-            asr_losses+=asr_losses_
-            asr_chosen_rewards+=asr_chosen_rewards_
-            asr_rejected_rewards+=asr_rejected_rewards_
+        al_w=[0.5,0.2,0.3]
+        
+        trajectories=pairs_comp[0].split(' ')
+        asr_losses1, asr_chosen_rewards1, asr_rejected_rewards1 = compute_loss(policy_asrs[int(trajectories[0])],
+                                                                            ref_asrs[int(trajectories[0])],
+                                                                            policy_asrs[int(trajectories[1])],
+                                                                            ref_asrs[int(trajectories[1])])
+            
+        trajectories=pairs_comp[1].split(' ')
+        asr_losses2, asr_chosen_rewards2, asr_rejected_rewards2 = compute_loss(policy_asrs[int(trajectories[0])],
+                                                                            ref_asrs[int(trajectories[0])],
+                                                                            policy_asrs[int(trajectories[1])],
+                                                                            ref_asrs[int(trajectories[1])])
+        trajectories=pairs_comp[2].split(' ')
+        asr_losses3, asr_chosen_rewards3, asr_rejected_rewards3 = compute_loss(policy_asrs[int(trajectories[0])],
+                                                                            ref_asrs[int(trajectories[0])],
+                                                                            policy_asrs[int(trajectories[1])],
+                                                                            ref_asrs[int(trajectories[1])])    
            
-
-        return qs_losses, asr_losses/len(pairs_comp), asr_chosen_rewards/len(pairs_comp), qs_chosen_rewards, qs_rejected_rewards, asr_rejected_rewards/len(pairs_comp)
+        asr_chosen_rewards=asr_chosen_rewards1*al_w[0]+asr_chosen_rewards2*al_w[1]+asr_chosen_rewards3*al_w[2]
+        asr_rejected_rewards=asr_rejected_rewards1*al_w[0]+asr_rejected_rewards2*al_w[1]+asr_rejected_rewards3*al_w[2]
+        asr_losses=asr_losses1*al_w[0]+asr_losses2*al_w[1]+asr_losses3*al_w[2]
+        ls_list=[asr_losses1*al_w[0],asr_losses2*al_w[1],asr_losses3*al_w[2]]
+        return qs_losses, asr_losses, asr_chosen_rewards, qs_chosen_rewards, qs_rejected_rewards, asr_rejected_rewards,ls_list
 
     
 
@@ -1055,7 +1065,7 @@ class SDOTrainer(Trainer):
                         self.ref_model, batch
                     )[:6]
 
-        qs_losses, asr_losses, asr_chosen_rewards, qs_chosen_rewards, qs_rejected_rewards, asr_rejected_rewards = self.sdo_loss(
+        qs_losses, asr_losses, asr_chosen_rewards, qs_chosen_rewards, qs_rejected_rewards, asr_rejected_rewards, asr_los_list = self.sdo_loss(
             policy_chosen_qs_logps,
             policy_rejected_qs_logps,
             policy_chosen_asr1_logps,
@@ -1071,8 +1081,9 @@ class SDOTrainer(Trainer):
         )
         qs_losses = qs_losses.mean()
         sdo_qs_losses = qs_losses * self.sdo_alpha_q
-        asr_losses = asr_losses.mean()
-        sdo_asr_losses = asr_losses * self.sdo_alpha_a
+        asr_losses=asr_losses.mean()
+        
+        sdo_asr_losses=asr_losses*self.sdo_alpha_a
         #unscaled_sft_loss = self.get_sft_loss(policy_chosen_logits, chosen_labels)
         #sft_loss = unscaled_sft_loss * self.gamma
 
@@ -1105,10 +1116,12 @@ class SDOTrainer(Trainer):
         #policy_rejected_logps = all_gather_tensor(policy_rejected_logps)
         #reference_chosen_logps = all_gather_tensor(reference_chosen_logps)
         #reference_rejected_logps = all_gather_tensor(reference_rejected_logps)
-
+        #print("loss_weight:",loss_weight)
         prefix = "eval_" if train_eval == "eval" else ""
-        metrics[f"{prefix}losses/sdo"] = sdo_qs_losses.cpu()+sdo_asr_losses.cpu()
-        metrics[f"{prefix}losses/total"] = losses.cpu()
+        metrics[f"{prefix}losses/question"] = sdo_qs_losses.cpu()
+        metrics[f"{prefix}losses/a1>a2"] = asr_los_list[0].cpu()
+        metrics[f"{prefix}losses/a3>a4"] = asr_los_list[1].cpu()
+        metrics[f"{prefix}losses/a1>a4"] = asr_los_list[2].cpu()
         metrics[f"{prefix}rewards-question/chosen"] = qs_chosen_rewards.mean().cpu()
         metrics[f"{prefix}rewards-question/rejected"] = qs_rejected_rewards.mean().cpu()
         metrics[f"{prefix}rewards-question/accuracies"] = reward_accuracies_qs.mean().cpu()
