@@ -4,7 +4,7 @@ ACCELERATE_CPU_AFFINITY=1 torchrun --nproc_per_node=8 --nnodes=1  \
     --deepspeed scripts/zero3.json \
     --model_name_or_path ZachSun/ours-qwen-7b-interleave \
     --version qwen_1_5\
-    --sdo_alpha_a 1.0 --sdo_alpha_q 1.0 --beta 0.1 --gamma 0 --lamda 10\
+    --sdo_alpha_a 1.5 --sdo_alpha_q 1.0 --beta 0.1 --gamma 0 --lamda 10\
     --data_path ./data/labling/7b-sqa-labling/merge_prefQA_7B.json \
     --image_folder ./data/image \
     --video_folder ./data/video \
