@@ -841,7 +841,7 @@ class SDOTrainer(Trainer):
         policy_asrs=[policy_chosen_asr1_logps,policy_rejected_asr1_logps,policy_chosen_asr2_logps,policy_rejected_asr2_logps]
         ref_asrs=[reference_chosen_asr1_logps,reference_rejected_asr1_logps,reference_chosen_asr2_logps,reference_rejected_asr2_logps]
         pairs_comp=['0 1','2 3', '0 3']
-        al_w=[0.5,0.45,0.05]
+        al_w=[0.7,0.25,0.05]
         
 
         trajectories=pairs_comp[0].split(' ')
