@@ -41,7 +41,7 @@ ACCELERATE_CPU_AFFINITY=1 torchrun --nproc_per_node=8 --nnodes=1  \
     --tf32 True \
     --model_max_length 32768 \
     --gradient_checkpointing True \
-    --dataloader_num_workers 8 \
+    --dataloader_num_workers 6 \
     --lazy_preprocess True \
     --report_to None \
     --dataloader_drop_last True \
