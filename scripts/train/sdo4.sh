@@ -23,7 +23,7 @@ ACCELERATE_CPU_AFFINITY=1 torchrun --nproc_per_node=8 --nnodes=1  \
     --image_grid_pinpoints  "(1x1),...,(6x6)" \
     --mm_patch_merge_type spatial_unpad \
     --bf16 True \
-    --run_name ours-7b-qwen-lora-sdo-lr1e6-lmd10-2epo-prefharderV1 \
+    --run_name ours-7b-qwen-lora-sdo-lr1e6-apa1.2-b0.3-lmd10-2epo-prefharderV1 \
     --output_dir "./checkpoints/ours-7b-qwen-lora-sdo-lr1e6-apa1.2-b0.3-lmd10-2epo-prefharderV1" \
     --num_train_epochs 2 \
     --per_device_train_batch_size 1 \
