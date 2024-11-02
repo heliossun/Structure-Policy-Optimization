@@ -1,38 +1,39 @@
 ACCELERATE_CPU_AFFINITY=1 torchrun --nproc_per_node=8 --nnodes=1  \
     llava/train/train_sdo.py \
-    --lora_enable True --lora_r 128 --lora_alpha 256 --mm_projector_lr 2e-6 \
+    --lora_enable True --lora_r 64 --lora_alpha 128 --mm_projector_lr 1e-6 \
     --deepspeed scripts/zero3.json \
-    --model_name_or_path ZachSun/sqllava-qwen-ov-7b \
+    --model_name_or_path ZachSun/ours-qwen-7b-interleave \
     --version qwen_1_5\
-    --sdo_alpha_a 1.2 --sdo_alpha_q 1.0 --beta 0.1 --gamma 0.1 --lamda 50\
-    --data_path ./data/labling/7b-sqa-labling/merge.json \
+    --sdo_alpha_a 1.2 --sdo_alpha_q 1.0 --beta 0.2 --gamma 0 --lamda 10\
+    --data_path ./data/labling/7b-sqa-labling/prefQA_7B_harder.json \
+    --image_folder ./data/image \
     --video_folder ./data/video \
     --mm_tunable_parts="mm_vision_tower,mm_mlp_adapter,mm_language_model" \
-    --mm_vision_tower_lr 5e-6 \
+    --mm_vision_tower_lr 1e-6 \
     --vit_lora_enable \
-    --lora_alpha_vit 128 \
-    --lora_r_vit 64 \
+    --lora_alpha_vit 64 \
+    --lora_r_vit 32 \
     --vision_tower google/siglip-so400m-patch14-384 \
     --mm_projector_type mlp2x_gelu \
     --mm_vision_select_layer -2 \
     --mm_use_im_start_end False \
     --mm_use_im_patch_token False \
     --group_by_modality_length True \
-    --image_aspect_ratio anyres_max_9 \
+    --image_aspect_ratio anyres_max_7 \
     --image_grid_pinpoints  "(1x1),...,(6x6)" \
     --mm_patch_merge_type spatial_unpad \
     --bf16 True \
-    --run_name test \
-    --output_dir "./checkpoints/ours-7b-qwen-lora-sdo-g0.1-lr1e5-alpa1.2-lmd50-3epo" \
-    --num_train_epochs 3 \
-    --per_device_train_batch_size 2 \
+    --run_name ours-7b-qwen-lora-sdo-lr1e6-lmd10-2epo-prefharderV1 \
+    --output_dir "./checkpoints/ours-7b-qwen-lora-sdo-lr1e6-apa1.2-b0.2-lmd10-2epo-prefharderV1" \
+    --num_train_epochs 2 \
+    --per_device_train_batch_size 1 \
     --per_device_eval_batch_size 4 \
-    --gradient_accumulation_steps 8 \
+    --gradient_accumulation_steps 16 \
     --evaluation_strategy "no" \
     --save_strategy "steps" \
     --save_steps 1000000 \
     --save_total_limit 1 \
-    --learning_rate 1e-5 \
+    --learning_rate 1e-6 \
     --weight_decay 0. \
     --warmup_ratio 0.1 \
     --lr_scheduler_type "linear" \
@@ -40,7 +41,8 @@ ACCELERATE_CPU_AFFINITY=1 torchrun --nproc_per_node=8 --nnodes=1  \
     --tf32 True \
     --model_max_length 32768 \
     --gradient_checkpointing True \
-    --dataloader_num_workers 8 \
+    --dataloader_num_workers 6 \
     --lazy_preprocess True \
     --report_to None \
     --dataloader_drop_last True \
+    --frames_upbound 30 \

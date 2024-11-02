@@ -803,7 +803,7 @@ class SDOTrainer(Trainer):
             The chosen_rewards and rejected_rewards tensors contain the rewards for the chosen and rejected responses, respectively.
         """
 
-        def compute_loss(policy_chosen_logps,reference_chosen_logps,policy_rejected_logps,reference_rejected_logps):
+        def compute_loss(policy_chosen_logps,reference_chosen_logps,policy_rejected_logps,reference_rejected_logps,beta):
             pi_logratios = policy_chosen_logps - policy_rejected_logps
             if self.reference_free:
                 ref_logratios = torch.tensor([0], dtype=pi_logratios.dtype, device=pi_logratios.device)
@@ -815,11 +815,11 @@ class SDOTrainer(Trainer):
             regulariz = self.lamda * torch.maximum(torch.tensor([0], dtype=pi_logratios.dtype, device=pi_logratios.device),reference_chosen_logps-policy_chosen_logps)
             logits = pi_logratios - ref_logratios-regulariz
             if self.loss_type == "sigmoid":
-                losses = -F.logsigmoid(self.beta * logits) * (1 - self.label_smoothing)
+                losses = -F.logsigmoid(beta * logits) * (1 - self.label_smoothing)
             elif self.loss_type == "hinge":
-                losses = torch.relu(1 - self.beta * logits)
+                losses = torch.relu(1 - beta * logits)
             elif self.loss_type == "ipo":
-                losses = (logits - 1 / (2 * self.beta)) ** 2
+                losses = (logits - 1 / (2 * beta)) ** 2
             elif self.loss_type == "kto_pair":
                 chosen_KL = (policy_chosen_logps - reference_chosen_logps).mean().clamp(min=0)
                 rejected_KL = (policy_rejected_logps - reference_rejected_logps).mean().clamp(min=0)
@@ -827,17 +827,17 @@ class SDOTrainer(Trainer):
                 rejected_logratios = policy_rejected_logps - reference_rejected_logps
                 losses = torch.cat(
                     (
-                        1 - F.sigmoid(self.beta * (chosen_logratios - rejected_KL)),
-                        1 - F.sigmoid(self.beta * (chosen_KL - rejected_logratios)),
+                        1 - F.sigmoid(beta * (chosen_logratios - rejected_KL)),
+                        1 - F.sigmoid(beta * (chosen_KL - rejected_logratios)),
                     ),
                     0,
                 )
             else:
                 raise ValueError(f"Unknown loss type: {self.loss_type}. Should be one of ['sigmoid', 'hinge', 'ipo', 'kto_pair']")
-            chosen_rewards = self.beta * (policy_chosen_logps.to(self.accelerator.device) - reference_chosen_logps.to(self.accelerator.device)).detach()
-            rejected_rewards = self.beta * (policy_rejected_logps.to(self.accelerator.device) - reference_rejected_logps.to(self.accelerator.device)).detach()
+            chosen_rewards = beta * (policy_chosen_logps.to(self.accelerator.device) - reference_chosen_logps.to(self.accelerator.device)).detach()
+            rejected_rewards = beta * (policy_rejected_logps.to(self.accelerator.device) - reference_rejected_logps.to(self.accelerator.device)).detach()
             return losses, chosen_rewards, rejected_rewards
-        qs_losses, qs_chosen_rewards, qs_rejected_rewards = compute_loss(policy_chosen_qs_logps,reference_chosen_qs_logps,policy_rejected_qs_logps,reference_rejected_qs_logps) #q1 vs q2
+        qs_losses, qs_chosen_rewards, qs_rejected_rewards = compute_loss(policy_chosen_qs_logps,reference_chosen_qs_logps,policy_rejected_qs_logps,reference_rejected_qs_logps,self.beta*1.5) #q1 vs q2
         policy_asrs=[policy_chosen_asr1_logps,policy_rejected_asr1_logps,policy_chosen_asr2_logps,policy_rejected_asr2_logps]
         ref_asrs=[reference_chosen_asr1_logps,reference_rejected_asr1_logps,reference_chosen_asr2_logps,reference_rejected_asr2_logps]
         pairs_comp=['0 1','2 3', '0 3']
@@ -848,18 +848,18 @@ class SDOTrainer(Trainer):
         asr_losses1, asr_chosen_rewards1, asr_rejected_rewards1 = compute_loss(policy_asrs[int(trajectories[0])],
                                                                             ref_asrs[int(trajectories[0])],
                                                                             policy_asrs[int(trajectories[1])],
-                                                                            ref_asrs[int(trajectories[1])])
+                                                                            ref_asrs[int(trajectories[1])],self.beta)
             
         trajectories=pairs_comp[1].split(' ')
         asr_losses2, asr_chosen_rewards2, asr_rejected_rewards2 = compute_loss(policy_asrs[int(trajectories[0])],
                                                                             ref_asrs[int(trajectories[0])],
                                                                             policy_asrs[int(trajectories[1])],
-                                                                            ref_asrs[int(trajectories[1])])
+                                                                            ref_asrs[int(trajectories[1])],self.beta)
         trajectories=pairs_comp[2].split(' ')
         asr_losses3, asr_chosen_rewards3, asr_rejected_rewards3 = compute_loss(policy_asrs[int(trajectories[0])],
                                                                             ref_asrs[int(trajectories[0])],
                                                                             policy_asrs[int(trajectories[1])],
-                                                                            ref_asrs[int(trajectories[1])])    
+                                                                            ref_asrs[int(trajectories[1])],self.beta/4)    
         asr_chosen_rewards=[asr_chosen_rewards1,asr_chosen_rewards2,asr_chosen_rewards3]   
         asr_rejected_rewards=[asr_rejected_rewards1,asr_rejected_rewards2,asr_rejected_rewards3]
         asr_losses=asr_losses1*al_w[0]+asr_losses2*al_w[1]+asr_losses3*al_w[2]
