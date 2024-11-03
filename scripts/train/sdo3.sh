@@ -43,6 +43,6 @@ ACCELERATE_CPU_AFFINITY=1 torchrun --nproc_per_node=8 --nnodes=1  \
     --gradient_checkpointing True \
     --dataloader_num_workers 6 \
     --lazy_preprocess True \
-    --report_to None \
+    --report_to wandb \
     --dataloader_drop_last True \
     --frames_upbound 25 \
