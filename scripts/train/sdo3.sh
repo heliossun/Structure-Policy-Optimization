@@ -19,12 +19,12 @@ ACCELERATE_CPU_AFFINITY=1 torchrun --nproc_per_node=8 --nnodes=1  \
     --mm_use_im_start_end False \
     --mm_use_im_patch_token False \
     --group_by_modality_length True \
-    --image_aspect_ratio anyres_max_7 \
+    --image_aspect_ratio anyres_max_6 \
     --image_grid_pinpoints  "(1x1),...,(6x6)" \
     --mm_patch_merge_type spatial_unpad \
     --bf16 True \
     --run_name ours-7b-qwen-lora-sdo-lr1e6-apa1.2-b0.2-lmd10-2epo-prefharderV1 \
-    --output_dir "./checkpoints/ours-7b-qwen-lora-sdo-lr1e6-apa1.2-b0.2-lmd10-2epo-prefharderV1" \
+    --output_dir "./checkpoints/ours-7b-qwen-lora-sdo-lr1e6-apa1.2-b0.2-lmd10-apa1.2-2epo-prefharderV1" \
     --num_train_epochs 2 \
     --per_device_train_batch_size 1 \
     --per_device_eval_batch_size 4 \
@@ -45,4 +45,4 @@ ACCELERATE_CPU_AFFINITY=1 torchrun --nproc_per_node=8 --nnodes=1  \
     --lazy_preprocess True \
     --report_to None \
     --dataloader_drop_last True \
-    --frames_upbound 30 \
+    --frames_upbound 25 \

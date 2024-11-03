@@ -4,8 +4,8 @@ ACCELERATE_CPU_AFFINITY=1 torchrun --nproc_per_node=8 --nnodes=1  \
     --deepspeed scripts/zero3.json \
     --model_name_or_path ZachSun/ours-qwen-7b-interleave \
     --version qwen_1_5\
-    --sdo_alpha_a 1.0 --sdo_alpha_q 1.0 --beta 0.1 --gamma 0 --lamda 50\
-    --data_path ./data/labling/7b-sqa-labling/merge_prefQA_7B.json \
+    --sdo_alpha_a 1.0 --sdo_alpha_q 1.0 --beta 0.2 --gamma 0 --lamda 50\
+    --data_path ./data/labling/7b-sqa-labling/prefQA_7B_harder.json \
     --image_folder ./data/image \
     --video_folder ./data/video \
     --mm_tunable_parts="mm_vision_tower,mm_mlp_adapter,mm_language_model" \
@@ -19,12 +19,12 @@ ACCELERATE_CPU_AFFINITY=1 torchrun --nproc_per_node=8 --nnodes=1  \
     --mm_use_im_start_end False \
     --mm_use_im_patch_token False \
     --group_by_modality_length True \
-    --image_aspect_ratio anyres_max_7 \
+    --image_aspect_ratio anyres_max_6 \
     --image_grid_pinpoints  "(1x1),...,(6x6)" \
     --mm_patch_merge_type spatial_unpad \
     --bf16 True \
-    --run_name ours-7b-qwen-lora-sdo-lr5e7-lmd50-2epo \
-    --output_dir "./checkpoints/ours-7b-qwen-lora-sdo-lr1e6-lmd50-2epo-newPrefv3" \
+    --run_name ours-7b-qwen-lora-sdo-lr1e6-lmd50-2epo-v4 \
+    --output_dir "./checkpoints/ours-7b-qwen-lora-sdo-lr1e6-b0.2-lmd50-2epo-v4" \
     --num_train_epochs 2 \
     --per_device_train_batch_size 1 \
     --per_device_eval_batch_size 4 \
@@ -35,7 +35,7 @@ ACCELERATE_CPU_AFFINITY=1 torchrun --nproc_per_node=8 --nnodes=1  \
     --save_total_limit 1 \
     --learning_rate 1e-6 \
     --weight_decay 0. \
-    --warmup_ratio 0.15 \
+    --warmup_ratio 0.1 \
     --lr_scheduler_type "linear" \
     --logging_steps 1 \
     --tf32 True \
@@ -45,4 +45,7 @@ ACCELERATE_CPU_AFFINITY=1 torchrun --nproc_per_node=8 --nnodes=1  \
     --lazy_preprocess True \
     --report_to None \
     --dataloader_drop_last True \
-    --frames_upbound 30 \
+    --frames_upbound 25 \
+
+
+# in termal run: wandb login     token: d87aba608dea823347d3d296f8be6d01c238545b
