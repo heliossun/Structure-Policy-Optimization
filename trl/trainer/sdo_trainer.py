@@ -859,7 +859,7 @@ class SDOTrainer(Trainer):
         asr_losses3, asr_chosen_rewards3, asr_rejected_rewards3 = compute_loss(policy_asrs[int(trajectories[0])],
                                                                             ref_asrs[int(trajectories[0])],
                                                                             policy_asrs[int(trajectories[1])],
-                                                                            ref_asrs[int(trajectories[1])],self.beta)    
+                                                                            ref_asrs[int(trajectories[1])],self.beta/2)    
         asr_chosen_rewards=[asr_chosen_rewards1,asr_chosen_rewards2,asr_chosen_rewards3]   
         asr_rejected_rewards=[asr_rejected_rewards1,asr_rejected_rewards2,asr_rejected_rewards3]
         asr_losses=asr_losses1*al_w[0]+asr_losses2*al_w[1]+asr_losses3*al_w[2]
