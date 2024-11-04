@@ -2,7 +2,7 @@ ACCELERATE_CPU_AFFINITY=1 torchrun --nproc_per_node=8 --nnodes=1  \
     llava/train/train_sdo.py \
     --lora_enable True --lora_r 64 --lora_alpha 128 --mm_projector_lr 1e-6 \
     --deepspeed scripts/zero3.json \
-    --model_name_or_path ZachSun/ours-qwen-7b-interleave \
+    --model_name_or_path ZachSun/sqllava-qwen-7b-interleave \
     --version qwen_1_5\
     --sdo_alpha_a 1.5 --sdo_alpha_q 1.0 --beta 0.3 --gamma 0 --lamda 10\
     --data_path ./data/labling/7b-sqa-labling/prefQA_7B_harder.json \
@@ -23,8 +23,8 @@ ACCELERATE_CPU_AFFINITY=1 torchrun --nproc_per_node=8 --nnodes=1  \
     --image_grid_pinpoints  "(1x1),...,(6x6)" \
     --mm_patch_merge_type spatial_unpad \
     --bf16 True \
-    --run_name ours-7b-qwen-lora-sdo-lr1e6-apa1.2-b0.3-lmd10-2epo-prefharderV1 \
-    --output_dir "./checkpoints/ours-7b-qwen-lora-sdo-lr1e6-apa1.2-b0.3-apa1.5-lmd10-2epo-prefharderV1" \
+    --run_name sqllava-7b-qwen-lora-sdo-lr1e6-apa1.2-b0.3-lmd10-2epo-prefharderV1 \
+    --output_dir "./checkpoints/sqllava-7b-qwen-lora-sdo-lr1e6-apa1.2-b0.3-apa1.5-lmd10-2epo-prefharderV1" \
     --num_train_epochs 2 \
     --per_device_train_batch_size 1 \
     --per_device_eval_batch_size 4 \

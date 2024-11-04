@@ -2,7 +2,7 @@ ACCELERATE_CPU_AFFINITY=1 torchrun --nproc_per_node=8 --nnodes=1  \
     llava/train/train_sdo.py \
     --lora_enable True --lora_r 64 --lora_alpha 128 --mm_projector_lr 1e-6 \
     --deepspeed scripts/zero3.json \
-    --model_name_or_path ZachSun/ours-qwen-7b-interleave \
+    --model_name_or_path ZachSun/sqllava-qwen-7b-interleave \
     --version qwen_1_5\
     --sdo_alpha_a 1.0 --sdo_alpha_q 1.0 --beta 0.2 --gamma 0 --lamda 50\
     --data_path ./data/labling/7b-sqa-labling/prefQA_7B_harder.json \

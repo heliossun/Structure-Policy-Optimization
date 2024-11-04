@@ -1,15 +1,15 @@
 ACCELERATE_CPU_AFFINITY=1 torchrun --nproc_per_node=8 --nnodes=1  \
     llava/train/train_sdo.py \
-    --lora_enable True --lora_r 64 --lora_alpha 128 --mm_projector_lr 1e-6 \
+    --lora_enable True --lora_r 64 --lora_alpha 128 --mm_projector_lr 5e-6 \
     --deepspeed scripts/zero3.json \
-    --model_name_or_path ZachSun/sqllava-qwen-7b-interleave \
+    --model_name_or_path ./checkpoints/sqllava-qwen-7b-lora-sdo-Q-merge \
     --version qwen_1_5\
-    --sdo_alpha_a 1.2 --sdo_alpha_q 1.0 --beta 0.2 --gamma 0 --lamda 50\
+    --sdo_alpha_a 1.0 --sdo_alpha_q 0 --beta 0.3 --gamma 0 --lamda 10\
     --data_path ./data/labling/7b-sqa-labling/prefQA_7B_harder.json \
     --image_folder ./data/image \
     --video_folder ./data/video \
     --mm_tunable_parts="mm_vision_tower,mm_mlp_adapter,mm_language_model" \
-    --mm_vision_tower_lr 1e-6 \
+    --mm_vision_tower_lr 5e-6 \
     --vit_lora_enable \
     --lora_alpha_vit 64 \
     --lora_r_vit 32 \
@@ -23,8 +23,8 @@ ACCELERATE_CPU_AFFINITY=1 torchrun --nproc_per_node=8 --nnodes=1  \
     --image_grid_pinpoints  "(1x1),...,(6x6)" \
     --mm_patch_merge_type spatial_unpad \
     --bf16 True \
-    --run_name ours-7b-qwen-lora-sdo-lr1e6-lmd50-2epo \
-    --output_dir "./checkpoints/ours-7b-qwen-lora-sdo-lr1e6-b0.2-lmd50-apa1.2-2epo-v4" \
+    --run_name sqllava-7b-qwen-lora-sdo-lr5e6-b0.3-lmd10-2epo-prefharderV1 \
+    --output_dir "./checkpoints/sqllava-7b-qwen-lora-sdo-lr5e6-b0.3-lmd10-2epo-QA" \
     --num_train_epochs 2 \
     --per_device_train_batch_size 1 \
     --per_device_eval_batch_size 4 \
@@ -33,7 +33,7 @@ ACCELERATE_CPU_AFFINITY=1 torchrun --nproc_per_node=8 --nnodes=1  \
     --save_strategy "steps" \
     --save_steps 1000000 \
     --save_total_limit 1 \
-    --learning_rate 1e-6 \
+    --learning_rate 5e-6 \
     --weight_decay 0. \
     --warmup_ratio 0.1 \
     --lr_scheduler_type "linear" \
