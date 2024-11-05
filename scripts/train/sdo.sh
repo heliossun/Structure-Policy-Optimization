@@ -9,10 +9,7 @@ ACCELERATE_CPU_AFFINITY=1 torchrun --nproc_per_node=8 --nnodes=1  \
     --image_folder ./data/image \
     --video_folder ./data/video \
     --mm_tunable_parts="mm_vision_tower,mm_mlp_adapter,mm_language_model" \
-    --mm_vision_tower_lr 5e-6 \
-    --vit_lora_enable \
-    --lora_alpha_vit 64 \
-    --lora_r_vit 32 \
+    --mm_vision_tower_lr 5e-7 \
     --vision_tower google/siglip-so400m-patch14-384 \
     --mm_projector_type mlp2x_gelu \
     --mm_vision_select_layer -2 \
