@@ -1728,6 +1728,29 @@ def train(attn_implementation=None):
             model.get_model().vision_resampler.requires_grad_(False)
             # Parse the mm_tunable_parts to decide which parts to unfreeze
             tunable_parts = model_args.mm_tunable_parts.split(",")
+            if "mm_language_model" in tunable_parts:
+                if training_args.lora_enable:
+
+                    lora_config = LoraConfig(
+                        r=training_args.lora_r,
+                        lora_alpha=training_args.lora_alpha,
+                        target_modules=find_all_linear_names(model,
+                                                             ["mm_projector", "vision_tower", "vision_resampler"]),
+                        lora_dropout=training_args.lora_dropout,
+                        bias=training_args.lora_bias,
+                        task_type="CAUSAL_LM",
+                    )
+                    if training_args.bits == 16:
+                        if training_args.bf16:
+                            model.to(torch.bfloat16)
+                        if training_args.fp16:
+                            model.to(torch.float16)
+                    rank0_print("Adding LoRA adapters...")
+                    model = get_peft_model(model, lora_config)
+                else:
+                    for name, param in model.named_parameters():
+                        if "vision_tower" not in name and "mm_projector" not in name and "vision_resampler" not in name:
+                            param.requires_grad_(True)
             if "mm_mlp_adapter" in tunable_parts:
                 for p in model.get_model().mm_projector.parameters():
                     p.requires_grad = True
@@ -1764,29 +1787,7 @@ def train(attn_implementation=None):
                         # vision_tower.load_state_dict(adapters_weights, strict=False)
                     else:
                         rank0_print(f"Checkpoint {checkpoint_name} not found")
-            if "mm_language_model" in tunable_parts:
-                if training_args.lora_enable:
-
-                    lora_config = LoraConfig(
-                        r=training_args.lora_r,
-                        lora_alpha=training_args.lora_alpha,
-                        target_modules=find_all_linear_names(model,
-                                                             ["mm_projector", "vision_tower", "vision_resampler"]),
-                        lora_dropout=training_args.lora_dropout,
-                        bias=training_args.lora_bias,
-                        task_type="CAUSAL_LM",
-                    )
-                    if training_args.bits == 16:
-                        if training_args.bf16:
-                            model.to(torch.bfloat16)
-                        if training_args.fp16:
-                            model.to(torch.float16)
-                    rank0_print("Adding LoRA adapters...")
-                    model = get_peft_model(model, lora_config)
-                else:
-                    for name, param in model.named_parameters():
-                        if "vision_tower" not in name and "mm_projector" not in name and "vision_resampler" not in name:
-                            param.requires_grad_(True)
+            
         total_params = sum(p.ds_numel if hasattr(p, "ds_numel") else p.numel() for p in model.parameters())
         trainable_params = sum(
             p.ds_numel if hasattr(p, "ds_numel") else p.numel() for p in model.parameters() if p.requires_grad)
