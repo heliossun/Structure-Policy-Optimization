@@ -28,8 +28,8 @@ ACCELERATE_CPU_AFFINITY=1 torchrun --nproc_per_node=8 --nnodes=1  \
     --gradient_accumulation_steps 16 \
     --evaluation_strategy "no" \
     --save_strategy "steps" \
-    --save_steps 1000000 \
-    --save_total_limit 1 \
+    --save_steps 4 \
+    --save_total_limit 3 \
     --learning_rate 5e-6 \
     --weight_decay 0. \
     --warmup_ratio 0.1 \
