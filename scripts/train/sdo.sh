@@ -21,14 +21,14 @@ ACCELERATE_CPU_AFFINITY=1 torchrun --nproc_per_node=8 --nnodes=1  \
     --mm_patch_merge_type spatial_unpad \
     --bf16 True \
     --run_name sqllava-7b-qwen-lora-sdo-lr5e6-b0.3-apa1.2-lmd10-3epo-v4_sPat \
-    --output_dir "./checkpoints/sqllava-7b-qwen-lora-sdo-lr5e6-b0.3-apa1.2-lmd10-3epo-v4_sPat" \
+    --output_dir "./checkpoints/sqllava-7b-qwen-lora-sdo-lr5e6-b0.3-apa1.2-lmd10-3epo-v4_sPat_ftVit" \
     --num_train_epochs 3 \
     --per_device_train_batch_size 1 \
     --per_device_eval_batch_size 4 \
     --gradient_accumulation_steps 16 \
     --evaluation_strategy "no" \
     --save_strategy "steps" \
-    --save_steps 4 \
+    --save_steps 400 \
     --save_total_limit 3 \
     --learning_rate 5e-6 \
     --weight_decay 0. \
