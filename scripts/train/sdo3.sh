@@ -4,7 +4,7 @@ ACCELERATE_CPU_AFFINITY=1 torchrun --nproc_per_node=8 --nnodes=1  \
     --deepspeed scripts/zero3.json \
     --model_name_or_path ZachSun/sqllava-qwen-7b-interleave \
     --version qwen_1_5\
-    --sdo_alpha_a 1.2 --sdo_alpha_q 1.0 --beta 0.3 --gamma 0 --lamda 10\
+    --sdo_alpha_a 1.2 --sdo_alpha_q 1.0 --beta 0.5 --gamma 0 --lamda 10\
     --data_path ./data/labling/7b-sqa-labling/prefQA_7B_harder.json \
     --image_folder ./data/image \
     --video_folder ./data/video \
@@ -16,12 +16,12 @@ ACCELERATE_CPU_AFFINITY=1 torchrun --nproc_per_node=8 --nnodes=1  \
     --mm_use_im_start_end False \
     --mm_use_im_patch_token False \
     --group_by_modality_length True \
-    --image_aspect_ratio anyres_max_7 \
+    --image_aspect_ratio anyres_max_6 \
     --image_grid_pinpoints  "(1x1),...,(6x6)" \
     --mm_patch_merge_type spatial_unpad \
     --bf16 True \
-    --run_name sqllava-7b-qwen-lora-sdo-lr5e6-b0.3-apa1.2-lmd10-3epo-v4_ftVit_prj5e7 \
-    --output_dir "./checkpoints/sqllava-7b-qwen-lora-sdo-lr5e6-b0.3-apa1.2-lmd10-3epo-v4_ftVit_prj5e7" \
+    --run_name sqllava-7b-qwen-lora-sdo-lr5e6-b0.5-apa1.2-lmd10-3epo-v4_ftVit_prj5e7 \
+    --output_dir "./checkpoints/sqllava-7b-qwen-lora-sdo-lr5e6-b0.5-apa1.2-lmd10-3epo-v4_ftVit_prj5e7" \
     --num_train_epochs 3 \
     --per_device_train_batch_size 1 \
     --per_device_eval_batch_size 4 \
@@ -42,4 +42,4 @@ ACCELERATE_CPU_AFFINITY=1 torchrun --nproc_per_node=8 --nnodes=1  \
     --lazy_preprocess True \
     --report_to wandb \
     --dataloader_drop_last True \
-    --frames_upbound 30 \
+    --frames_upbound 25 \
