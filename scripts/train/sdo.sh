@@ -1,6 +1,6 @@
 ACCELERATE_CPU_AFFINITY=1 torchrun --nproc_per_node=8 --nnodes=1  \
     llava/train/train_sdo.py \
-    --lora_enable True --lora_r 64 --lora_alpha 128 --mm_projector_lr 5e-6 \
+    --lora_enable True --lora_r 64 --lora_alpha 128 --mm_projector_lr 5e-7 \
     --deepspeed scripts/zero3.json \
     --model_name_or_path ZachSun/sqllava-qwen-7b-interleave \
     --version qwen_1_5\
@@ -20,8 +20,8 @@ ACCELERATE_CPU_AFFINITY=1 torchrun --nproc_per_node=8 --nnodes=1  \
     --image_grid_pinpoints  "(1x1),...,(6x6)" \
     --mm_patch_merge_type spatial_unpad \
     --bf16 True \
-    --run_name sqllava-7b-qwen-lora-sdo-lr5e6-b0.3-apa1.2-lmd10-3epo-v4_sPat \
-    --output_dir "./checkpoints/sqllava-7b-qwen-lora-sdo-lr5e6-b0.3-apa1.2-lmd10-3epo-v4_sPat_ftVit" \
+    --run_name sqllava-7b-qwen-lora-sdo-lr5e6-b0.3-apa1.2-lmd10-3epo-v4_sPat_ftVit_prj5e7 \
+    --output_dir "./checkpoints/sqllava-7b-qwen-lora-sdo-lr5e6-b0.3-apa1.2-lmd10-3epo-v4_sPat_ftVit_prj5e7" \
     --num_train_epochs 3 \
     --per_device_train_batch_size 1 \
     --per_device_eval_batch_size 4 \

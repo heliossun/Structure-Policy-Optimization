@@ -1217,7 +1217,7 @@ class DPOTrainer(Trainer):
         del self._stored_metrics[train_eval]
         return super().log(logs)
     def save_my_lora_ckpt(self, output_dir, training_args, model):
-        self.state.save_to_json(os.path.join(output_dir, 'trainer_state.json'))
+        #self.state.save_to_json(os.path.join(output_dir, 'trainer_state.json'))
         state_dict = get_peft_state_maybe_zero_3(model.named_parameters(), training_args.lora_bias)
         non_lora_state_dict = get_peft_state_non_lora_maybe_zero_3(model.named_parameters())
         if training_args.local_rank == 0 or training_args.local_rank == -1:
