@@ -4,7 +4,7 @@
 
 
 
-# Structured Policy Optimization: Enhance Large Vision-Language Model via Self-Referenced Dialogue
+# SPO
 [![SPO-llava-onevision checkpoints](https://img.shields.io/badge/llava_onevision-checkpoints-blue)](https://huggingface.co/collections/lmms-lab/llava-onevision-66a259c3526e15166d6bba37)
 
 
