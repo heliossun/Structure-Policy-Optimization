@@ -1,17 +1,18 @@
-ACCELERATE_CPU_AFFINITY=1 torchrun --nproc_per_node=8 --nnodes=1 \
-    llava/train/train_mem.py \
-    --lora_enable True --lora_r 128 --lora_alpha 256 --mm_projector_lr 2e-5 \
+ACCELERATE_CPU_AFFINITY=1 torchrun --nproc_per_node=8 --nnodes=1  \
+    llava/train/train_spo.py \
+    --lora_enable True --lora_r 64 --lora_alpha 128 --mm_projector_lr 1e-6 \
     --deepspeed scripts/zero3.json \
-    --model_name_or_path lmms-lab/llava-onevision-qwen2-0.5b-si \
-    --version qwen_sq\
-    --data_path ./data/m4-instruct-anno+video.json \
+    --model_name_or_path ZachSun/ours-qwen-0.5b-interleave \
+    --version qwen_1_5\
+    --spo_alpha_a 1.0 --spo_alpha_q 1.0 --beta 0.1 --gamma 0 --lamda 10\
+    --data_path ./data/labling/7b-sqa-labling/merge_prefQA_7B.json \
     --image_folder ./data/image \
     --video_folder ./data/video \
     --mm_tunable_parts="mm_vision_tower,mm_mlp_adapter,mm_language_model" \
-    --mm_vision_tower_lr 2e-4 \
+    --mm_vision_tower_lr 5e-6 \
     --vit_lora_enable \
-    --lora_alpha_vit 128 \
-    --lora_r_vit 64 \
+    --lora_alpha_vit 64 \
+    --lora_r_vit 32 \
     --vision_tower google/siglip-so400m-patch14-384 \
     --mm_projector_type mlp2x_gelu \
     --mm_vision_select_layer -2 \
@@ -22,20 +23,20 @@ ACCELERATE_CPU_AFFINITY=1 torchrun --nproc_per_node=8 --nnodes=1 \
     --image_grid_pinpoints  "(1x1),...,(6x6)" \
     --mm_patch_merge_type spatial_unpad \
     --bf16 True \
-    --run_name test \
-    --output_dir "./checkpoints/sqllava-lora-qwen-0.5b-siVideo" \
-    --num_train_epochs 1 \
-    --per_device_train_batch_size 2 \
+    --run_name ours-0.5b-qwen-lora-spo-g0-lr5e-7-lmd50-1.5epo \
+    --output_dir "./checkpoints/ours-0.5b-qwen-lora-spo-lr5e6-lmd50-1.5epo-newPrefv2" \
+    --num_train_epochs 1.5 \
+    --per_device_train_batch_size 1 \
     --per_device_eval_batch_size 4 \
-    --gradient_accumulation_steps 8 \
+    --gradient_accumulation_steps 16 \
     --evaluation_strategy "no" \
     --save_strategy "steps" \
-    --save_steps 100000 \
+    --save_steps 1000000 \
     --save_total_limit 1 \
-    --learning_rate 2e-4 \
+    --learning_rate 5e-6 \
     --weight_decay 0. \
-    --warmup_ratio 0.03 \
-    --lr_scheduler_type "cosine" \
+    --warmup_ratio 0.1 \
+    --lr_scheduler_type "linear" \
     --logging_steps 1 \
     --tf32 True \
     --model_max_length 32768 \
@@ -43,12 +44,5 @@ ACCELERATE_CPU_AFFINITY=1 torchrun --nproc_per_node=8 --nnodes=1 \
     --dataloader_num_workers 8 \
     --lazy_preprocess True \
     --report_to None \
-    --torch_compile True \
-    --torch_compile_backend "inductor" \
     --dataloader_drop_last True \
-    --frames_upbound 32 \
-    --ToME False \
-    --merging_r 16 \
-    --trend -1.0 \
-    --sq_r 0.3
-# You can delete the sdpa attn_implementation if you want to use flash attn
+    --frames_upbound 30 \

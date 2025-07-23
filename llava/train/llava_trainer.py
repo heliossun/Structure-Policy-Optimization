@@ -7,7 +7,7 @@ from accelerate import Accelerator
 from accelerate.utils import InitProcessGroupKwargs, GradientAccumulationPlugin
 from torch.utils.data import Dataset, Sampler, DataLoader
 
-from trl.trainer import DPOTrainer, SDOTrainer
+from trl.trainer import DPOTrainer, SPOTrainer
 from trl.trainer.utils import DPODataCollatorWithPadding
 
 from transformers import Trainer
@@ -524,7 +524,7 @@ class LLaVADPOTrainer(DPOTrainer):
         else:
             super(LLaVADPOTrainer, self)._save(output_dir, state_dict)
 
-class LLaVASDOTrainer(SDOTrainer):
+class LLaVASPOTrainer(SPOTrainer):
     def _get_train_sampler(self) -> Optional[torch.utils.data.Sampler]:
         if self.train_dataset is None or not has_length(self.train_dataset):
             return None
@@ -652,10 +652,10 @@ class LLaVASDOTrainer(SDOTrainer):
                 #unwrapped_model = unwrap_model(model)
                 self.save_my_lora_ckpt(output_dir, self.args, self.model)
             else:
-                super(LLaVASDOTrainer, self)._save_checkpoint(model, trial, metrics)
+                super(LLaVASPOTrainer, self)._save_checkpoint(model, trial, metrics)
 
     def _save(self, output_dir: Optional[str] = None, state_dict=None):
         if getattr(self.args, "tune_mm_mlp_adapter", False):
             pass
         else:
-            super(LLaVASDOTrainer, self)._save(output_dir, state_dict)
+            super(LLaVASPOTrainer, self)._save(output_dir, state_dict)

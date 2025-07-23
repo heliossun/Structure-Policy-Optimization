@@ -34,9 +34,7 @@ import torch
 
 import transformers
 import tokenizers
-import sys
 
-sys.path.insert(0, '/home/ztao/guohao/LLaVA-NeXT')
 from llava.constants import IGNORE_INDEX, DEFAULT_IMAGE_TOKEN, DEFAULT_IM_START_TOKEN, DEFAULT_IM_END_TOKEN, \
     IMAGE_TOKEN_INDEX
 from torch.utils.data import Dataset
@@ -1033,7 +1031,7 @@ class DPODataset(Dataset):
         length_list = []
         for sample in self.list_data_dict:
             # Calculate the length of the prompt, chosen, and rejected text ( regular dpo for now)
-            # TODO: modify this to SDO: two conversations
+            # TODO: modify this to SPO: two conversations
             cur_len = len(sample["c_pref"]['q'].split()) + len(sample["c_pref"]['a_w'].split()) + len(
                 sample["c_pref"]['a_l'].split())
             # If the sample includes a video, the length is positive; otherwise, it is negative

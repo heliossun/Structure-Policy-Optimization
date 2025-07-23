@@ -34,11 +34,10 @@ import torch
 
 import transformers
 import tokenizers
-import sys
-sys.path.insert(0,'/home/ztao/guohao/LLaVA-NeXT')
+
 from llava.constants import IGNORE_INDEX, DEFAULT_IMAGE_TOKEN, DEFAULT_IM_START_TOKEN, DEFAULT_IM_END_TOKEN, IMAGE_TOKEN_INDEX
 from torch.utils.data import Dataset
-from llava.train.llava_trainer import LLaVASDOTrainer
+from llava.train.llava_trainer import LLaVASPOTrainer
 
 from llava import conversation as conversation_lib
 from llava.model import *
@@ -165,8 +164,8 @@ class TrainingArguments(transformers.TrainingArguments):
     gradient_checkpointing: bool = field(default=True)
     verbose_logging: bool = field(default=False)
     attn_implementation: str = field(default="flash_attention_2", metadata={"help": "Use transformers attention implementation."})
-    sdo_alpha_a: float = field(default=1.0)
-    sdo_alpha_q: float = field(default=1.0)
+    spo_alpha_a: float = field(default=1.0)
+    spo_alpha_q: float = field(default=1.0)
     beta: float = field(default=0.1)
     gamma: float = field(default=1.0)
     generate_during_eval: bool = field(default=False)
@@ -1003,11 +1002,11 @@ def preprocess(sources: Sequence[str], tokenizer: transformers.PreTrainedTokeniz
 
 
 
-class SDODataset(Dataset):
-    """Dataset for SDODataset fine-tuning."""
+class SPODataset(Dataset):
+    """Dataset for SPODataset fine-tuning."""
 
     def __init__(self, data_path: str, tokenizer: transformers.PreTrainedTokenizer, data_args: DataArguments):
-        super(SDODataset, self).__init__()
+        super(SPODataset, self).__init__()
         # Handle multiple JSON files specified in the data_path
         self.list_data_dict = []
 
@@ -1105,7 +1104,7 @@ class SDODataset(Dataset):
         length_list = []
         for sample in self.list_data_dict:
             # Calculate the length of the prompt, chosen, and rejected text ( regular dpo for now)
-            #TODO: modify this to SDO: two conversations
+            #TODO: modify this to SPO: two conversations
             cur_len = (len(sample['sampler'][0].split())+len(sample['sampler'][1].split())+
                        len(sample["c_pref"]['q'].split()) + len(sample["c_pref"]['a_w'].split()) +
                        len(sample["c_rej"]['q'].split()) + len(sample["c_rej"]['a_w'].split())+
@@ -1290,10 +1289,9 @@ class SDODataset(Dataset):
         # prompt exist in the data
         data_dict["has_image"] = has_image
         return data_dict
-#TODO: modify SDODataset/_get_item and DPODataCollator for our DPO
 
 @dataclass
-class SDODataCollator(DPODataCollatorWithPadding):
+class SPODataCollator(DPODataCollatorWithPadding):
     """Collate examples for DPO fine-tuning."""
 
     # tokenizer: transformers.PreTrainedTokenizer
@@ -1396,9 +1394,9 @@ class SDODataCollator(DPODataCollatorWithPadding):
         return padded_batch
 
 
-def make_sdo_data_module(tokenizer: transformers.PreTrainedTokenizer, data_args) -> Dict:
+def make_spo_data_module(tokenizer: transformers.PreTrainedTokenizer, data_args) -> Dict:
     """Make dataset and collator for supervised fine-tuning."""
-    train_dataset = SDODataset(tokenizer=tokenizer, data_path=data_args.data_path, data_args=data_args)
+    train_dataset = SPODataset(tokenizer=tokenizer, data_path=data_args.data_path, data_args=data_args)
     return train_dataset
 
 
@@ -1852,9 +1850,9 @@ def train(attn_implementation=None):
                     if training_args.bf16 and module.weight.dtype == torch.float32:
                         module = module.to(torch.bfloat16)
 
-    train_dataset = make_sdo_data_module(tokenizer=tokenizer, data_args=data_args)
+    train_dataset = make_spo_data_module(tokenizer=tokenizer, data_args=data_args)
     rank0_print("Finish loading dataset....")
-    data_collator = SDODataCollator(
+    data_collator = SPODataCollator(
         tokenizer,
         label_pad_token_id=IGNORE_INDEX,
         pad_token_id=tokenizer.pad_token_id,
@@ -1862,12 +1860,12 @@ def train(attn_implementation=None):
 
     
     
-    trainer = LLaVASDOTrainer(
+    trainer = LLaVASPOTrainer(
         model,
         ref_model,
         args=training_args,
-        sdo_alpha_a=training_args.sdo_alpha_a,
-        sdo_alpha_q=training_args.sdo_alpha_q,
+        spo_alpha_a=training_args.spo_alpha_a,
+        spo_alpha_q=training_args.spo_alpha_q,
         beta=training_args.beta,
         gamma=training_args.gamma,
         train_dataset=train_dataset,

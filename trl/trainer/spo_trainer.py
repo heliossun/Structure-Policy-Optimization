@@ -96,9 +96,9 @@ def maybe_zero_3(param, ignore_status=False, name=None):
         param = param.detach().cpu().clone()
     return param
 
-class SDOTrainer(Trainer):
+class SPOTrainer(Trainer):
     r"""
-    Initialize SDOTrainer.
+    Initialize SPOTrainer.
 
     Args:
         model (`transformers.PreTrainedModel`):
@@ -107,11 +107,11 @@ class SDOTrainer(Trainer):
             Hugging Face transformer model with a casual language modelling head. Used for implicit reward computation and loss. If no
             reference model is provided, the trainer will create a reference model with the same architecture as the model to be optimized.
         beta (`float`, defaults to 0.1):
-            The beta factor in SDO loss. Higher beta means less divergence from the initial policy. For the IPO loss, beta is the regularization parameter denoted by tau in the paper.
+            The beta factor in SPO loss. Higher beta means less divergence from the initial policy. For the IPO loss, beta is the regularization parameter denoted by tau in the paper.
         label_smoothing (`float`, defaults to 0):
-            The robust SDO label smoothing parameter from the [cDPO](https://ericmitchell.ai/cdpo.pdf) report that should be between 0 and 0.5.
+            The robust SPO label smoothing parameter from the [cDPO](https://ericmitchell.ai/cdpo.pdf) report that should be between 0 and 0.5.
         loss_type (`str`, defaults to `"sigmoid"`):
-            The type of SDO loss to use. Either `"sigmoid"` the default SDO loss,`"hinge"` loss from [SLiC](https://arxiv.org/abs/2305.10425) paper, `"ipo"` from [IPO](https://arxiv.org/abs/2310.12036) paper, or `"kto"` from the HALOs [report](https://github.com/ContextualAI/HALOs/blob/main/assets/report.pdf).
+            The type of SPO loss to use. Either `"sigmoid"` the default SPO loss,`"hinge"` loss from [SLiC](https://arxiv.org/abs/2305.10425) paper, `"ipo"` from [IPO](https://arxiv.org/abs/2310.12036) paper, or `"kto"` from the HALOs [report](https://github.com/ContextualAI/HALOs/blob/main/assets/report.pdf).
         args (`transformers.TrainingArguments`):
             The arguments to use for training.
         data_collator (`transformers.DataCollator`):
@@ -172,15 +172,14 @@ class SDOTrainer(Trainer):
         lamda ('int'): hyperparameter of regularization term in DPO loss
     """
 
-    _tag_names = ["trl", "sdo"]
+    _tag_names = ["trl", "spo"]
 
     def __init__(
         self,
         model: Optional[Union[PreTrainedModel, nn.Module, str]] = None,
         ref_model: Optional[Union[PreTrainedModel, nn.Module, str]] = None,
-        vision_tower: Optional[Union[PreTrainedModel, nn.Module, str]] = None,
-        sdo_alpha_a: float = 1.0,
-        sdo_alpha_q: float = 1.0,
+        spo_alpha_a: float = 1.0,
+        spo_alpha_q: float = 1.0,
         beta: float = 0.1,
         gamma: float = 0.1,
         label_smoothing: float = 0,
@@ -213,30 +212,30 @@ class SDOTrainer(Trainer):
         ref_adapter_name: Optional[str] = None,
         reference_free: bool = False,
         lamda: Optional[int] = None,
+
     ):
         # import pdb;pdb.set_trace()
         if model_init_kwargs is None:
             model_init_kwargs = {}
         elif not isinstance(model, str):
-            raise ValueError("You passed model_kwargs to the SDOTrainer. But your model is already instantiated.")
+            raise ValueError("You passed model_kwargs to the SPOTrainer. But your model is already instantiated.")
 
         if ref_model_init_kwargs is None:
             ref_model_init_kwargs = {}
         elif not isinstance(ref_model, str):
-            raise ValueError("You passed ref_model_kwargs to the SDOTrainer. But your ref_model is already instantiated.")
+            raise ValueError("You passed ref_model_kwargs to the SPOTrainer. But your ref_model is already instantiated.")
 
         if isinstance(model, str):
-            warnings.warn("You passed a model_id to the SDOTrainer. This will automatically create an " "`AutoModelForCausalLM` or a `PeftModel` (if you passed a `peft_config`) for you.")
+            warnings.warn("You passed a model_id to the SPOTrainer. This will automatically create an " "`AutoModelForCausalLM` or a `PeftModel` (if you passed a `peft_config`) for you.")
             model = AutoModelForCausalLM.from_pretrained(model, **model_init_kwargs)
 
         if isinstance(ref_model, str):
-            warnings.warn("You passed a ref model_id to the SDOTrainer. This will automatically create an " "`AutoModelForCausalLM`")
+            warnings.warn("You passed a ref model_id to the SPOTrainer. This will automatically create an " "`AutoModelForCausalLM`")
             ref_model = AutoModelForCausalLM.from_pretrained(ref_model, **ref_model_init_kwargs)
 
         # Initialize this variable to False. This helps tracking the case when `peft_module_casting_to_bf16`
         # has been called in order to properly call autocast if needed.
         self._peft_has_been_casted_to_bf16 = False
-        self.vision_tower=vision_tower
         if generate_during_eval and not is_wandb_available():
             raise ValueError("`generate_during_eval=True` requires Weights and Biases to be installed." " Please install `wandb` to resolve.")
 
@@ -264,23 +263,23 @@ class SDOTrainer(Trainer):
                 self.ref_model = create_reference_model(model)
 
         if tokenizer is None:
-            raise ValueError("tokenizer must be specified to tokenize a SDO dataset.")
+            raise ValueError("tokenizer must be specified to tokenize a SPO dataset.")
         if max_length is None:
             warnings.warn(
-                "`max_length` is not set in the SDOTrainer's init" " it will default to `512` by default, but you should do it yourself in the future.",
+                "`max_length` is not set in the SPOTrainer's init" " it will default to `512` by default, but you should do it yourself in the future.",
                 UserWarning,
             )
             max_length = 512
         if max_prompt_length is None:
             warnings.warn(
-                "`max_prompt_length` is not set in the SDOTrainer's init" " it will default to `128` by default, but you should do it yourself in the future.",
+                "`max_prompt_length` is not set in the SPOTrainer's init" " it will default to `128` by default, but you should do it yourself in the future.",
                 UserWarning,
             )
             max_prompt_length = 128
 
         if max_target_length is None and self.is_encoder_decoder:
             warnings.warn(
-                "When using an encoder decoder architecture, you should set `max_target_length` in the SDOTrainer's init" " it will default to `128` by default, but you should do it yourself in the future.",
+                "When using an encoder decoder architecture, you should set `max_target_length` in the SPOTrainer's init" " it will default to `128` by default, but you should do it yourself in the future.",
                 UserWarning,
             )
             max_target_length = 128
@@ -300,9 +299,9 @@ class SDOTrainer(Trainer):
                     UserWarning,
                 )
 
-            self.use_sdo_data_collator = True
+            self.use_spo_data_collator = True
         else:
-            self.use_sdo_data_collator = False
+            self.use_spo_data_collator = False
 
         if disable_dropout:
             disable_dropout_in_model(model)
@@ -327,15 +326,13 @@ class SDOTrainer(Trainer):
         if loss_type in ["hinge", "ipo", "kto_pair"] and label_smoothing > 0:
             warnings.warn("You are using a loss type that does not support label smoothing. Ignoring label_smoothing parameter.")
 
-        self.sdo_alpha_a = sdo_alpha_a
-        self.sdo_alpha_q = sdo_alpha_q
+        self.spo_alpha_a = spo_alpha_a
+        self.spo_alpha_q = spo_alpha_q
         self.beta = beta
         self.gamma = gamma
         self.label_smoothing = label_smoothing
         self.loss_type = loss_type
-
         self._stored_metrics = defaultdict(lambda: defaultdict(list))
-
         self.dataset_num_proc = dataset_num_proc
 
         # Compute that only on the main process for faster data processing.
@@ -540,7 +537,7 @@ class SDOTrainer(Trainer):
         )
 
     def tokenize_row(self, feature, model: Optional[Union[PreTrainedModel, nn.Module]] = None) -> Dict:
-        """Tokenize a single row from a SDO specific dataset.
+        """Tokenize a single row from a SPO specific dataset.
 
         At this stage, we don't convert to PyTorch tensors yet; we just handle the truncation
         in case the prompt + chosen or prompt + rejected responses is/are too long. First
@@ -673,7 +670,7 @@ class SDOTrainer(Trainer):
                 self.model.set_adapter(self.model_adapter_name or "default")
 
     def compute_reference_log_probs(self, padded_batch: Dict) -> Dict:
-        """Computes log probabilities of the reference model for a single padded batch of a SDO specific dataset."""
+        """Computes log probabilities of the reference model for a single padded batch of a SPO specific dataset."""
         compte_ref_context_manager = torch.cuda.amp.autocast if self._peft_has_been_casted_to_bf16 else nullcontext
 
         # compute reference logps
@@ -776,32 +773,37 @@ class SDOTrainer(Trainer):
         concatenated_batch["modalities"] = batch["modalities"] * 2
         return concatenated_batch
 
-    def sdo_loss(
+    def spo_loss(
         self,
-        policy_chosen_qs_logps: torch.FloatTensor, 
-        policy_rejected_qs_logps: torch.FloatTensor, 
-        policy_chosen_asr_logps: torch.FloatTensor, 
-        policy_rejected_asr_logps: torch.FloatTensor,
-        reference_chosen_qs_logps: torch.FloatTensor, 
-        reference_rejected_qs_logps: torch.FloatTensor, 
-        reference_chosen_asr_logps: torch.FloatTensor, 
-        reference_rejected_asr_logps: torch.FloatTensor,
+        policy_chosen_qs_logps: torch.FloatTensor,
+        policy_rejected_qs_logps: torch.FloatTensor,
+        policy_chosen_asr1_logps: torch.FloatTensor,
+        policy_chosen_asr2_logps: torch.FloatTensor,
+        policy_rejected_asr1_logps: torch.FloatTensor,
+        policy_rejected_asr2_logps: torch.FloatTensor,
+        reference_chosen_qs_logps: torch.FloatTensor,
+        reference_rejected_qs_logps: torch.FloatTensor,
+        reference_chosen_asr1_logps: torch.FloatTensor,
+        reference_chosen_asr2_logps: torch.FloatTensor,
+        reference_rejected_asr1_logps: torch.FloatTensor,
+        reference_rejected_asr2_logps: torch.FloatTensor,
     ) -> Tuple[torch.FloatTensor, torch.FloatTensor, torch.FloatTensor]:
-        """Compute the SDO loss for a batch of policy and reference model log probabilities.
+        """Compute the SPO loss for a batch of policy and reference model log probabilities.
 
         Args:
-            policy_chosen_logps: Log probabilities of the policy model for the chosen responses. Shape: (batch_size,)
-            policy_rejected_logps: Log probabilities of the policy model for the rejected responses. Shape: (batch_size,)
-            reference_chosen_logps: Log probabilities of the reference model for the chosen responses. Shape: (batch_size,)
-            reference_rejected_logps: Log probabilities of the reference model for the rejected responses. Shape: (batch_size,)
+            reference/policy_chosen_asr1_logps: Log probabilities of the reference/policy model for the chosen responses of chosen question. Shape: (batch_size,)
+            reference/policy_chosen_asr2_logps: Log probabilities of the reference/policy model for the reject responses of chosen question. Shape: (batch_size,)
+            reference/policy_rejected_asr1_logps: Log probabilities of the reference/policy model for the chosen responses of reject question. Shape: (batch_size,)
+            reference/policy_rejected_asr2_logps: Log probabilities of the reference/policy model for the rejected responses of reject question. Shape: (batch_size,)
+
 
         Returns:
             A tuple of three tensors: (losses, chosen_rewards, rejected_rewards).
-            The losses tensor contains the SDO loss for each example in the batch.
+            The losses tensor contains the SPO loss for each example in the batch.
             The chosen_rewards and rejected_rewards tensors contain the rewards for the chosen and rejected responses, respectively.
         """
-        
-        def compute_loss(policy_chosen_logps,reference_chosen_logps,policy_rejected_logps,reference_rejected_logps):
+
+        def compute_loss(policy_chosen_logps,reference_chosen_logps,policy_rejected_logps,reference_rejected_logps,beta):
             pi_logratios = policy_chosen_logps - policy_rejected_logps
             if self.reference_free:
                 ref_logratios = torch.tensor([0], dtype=pi_logratios.dtype, device=pi_logratios.device)
@@ -813,11 +815,11 @@ class SDOTrainer(Trainer):
             regulariz = self.lamda * torch.maximum(torch.tensor([0], dtype=pi_logratios.dtype, device=pi_logratios.device),reference_chosen_logps-policy_chosen_logps)
             logits = pi_logratios - ref_logratios-regulariz
             if self.loss_type == "sigmoid":
-                losses = -F.logsigmoid(self.beta * logits) * (1 - self.label_smoothing)
+                losses = -F.logsigmoid(beta * logits) * (1 - self.label_smoothing)
             elif self.loss_type == "hinge":
-                losses = torch.relu(1 - self.beta * logits)
+                losses = torch.relu(1 - beta * logits)
             elif self.loss_type == "ipo":
-                losses = (logits - 1 / (2 * self.beta)) ** 2
+                losses = (logits - 1 / (2 * beta)) ** 2
             elif self.loss_type == "kto_pair":
                 chosen_KL = (policy_chosen_logps - reference_chosen_logps).mean().clamp(min=0)
                 rejected_KL = (policy_rejected_logps - reference_rejected_logps).mean().clamp(min=0)
@@ -825,19 +827,46 @@ class SDOTrainer(Trainer):
                 rejected_logratios = policy_rejected_logps - reference_rejected_logps
                 losses = torch.cat(
                     (
-                        1 - F.sigmoid(self.beta * (chosen_logratios - rejected_KL)),
-                        1 - F.sigmoid(self.beta * (chosen_KL - rejected_logratios)),
+                        1 - F.sigmoid(beta * (chosen_logratios - rejected_KL)),
+                        1 - F.sigmoid(beta * (chosen_KL - rejected_logratios)),
                     ),
                     0,
                 )
             else:
                 raise ValueError(f"Unknown loss type: {self.loss_type}. Should be one of ['sigmoid', 'hinge', 'ipo', 'kto_pair']")
-            chosen_rewards = self.beta * (policy_chosen_logps.to(self.accelerator.device) - reference_chosen_logps.to(self.accelerator.device)).detach()
-            rejected_rewards = self.beta * (policy_rejected_logps.to(self.accelerator.device) - reference_rejected_logps.to(self.accelerator.device)).detach()
+            chosen_rewards = beta * (policy_chosen_logps.to(self.accelerator.device) - reference_chosen_logps.to(self.accelerator.device)).detach()
+            rejected_rewards = beta * (policy_rejected_logps.to(self.accelerator.device) - reference_rejected_logps.to(self.accelerator.device)).detach()
             return losses, chosen_rewards, rejected_rewards
-        qs_losses, qs_chosen_rewards, qs_rejected_rewards = compute_loss(policy_chosen_qs_logps,reference_chosen_qs_logps,policy_rejected_qs_logps,reference_rejected_qs_logps)
-        asr_losses, asr_chosen_rewards, asr_rejected_rewards = compute_loss(policy_chosen_asr_logps,reference_chosen_asr_logps,policy_rejected_asr_logps,reference_rejected_asr_logps)
-        return qs_losses, asr_losses, asr_chosen_rewards, qs_chosen_rewards, qs_rejected_rewards, asr_rejected_rewards
+        qs_losses, qs_chosen_rewards, qs_rejected_rewards = compute_loss(policy_chosen_qs_logps,reference_chosen_qs_logps,policy_rejected_qs_logps,reference_rejected_qs_logps,self.beta/self.spo_alpha_q) #q1 vs q2
+        policy_asrs=[policy_chosen_asr1_logps,policy_rejected_asr1_logps,policy_chosen_asr2_logps,policy_rejected_asr2_logps]
+        ref_asrs=[reference_chosen_asr1_logps,reference_rejected_asr1_logps,reference_chosen_asr2_logps,reference_rejected_asr2_logps]
+        pairs_comp=['0 1','2 3', '0 3']
+        al_w=[1,1,0.05]
+        
+
+        trajectories=pairs_comp[0].split(' ')
+        asr_losses1, asr_chosen_rewards1, asr_rejected_rewards1 = compute_loss(policy_asrs[int(trajectories[0])],
+                                                                            ref_asrs[int(trajectories[0])],
+                                                                            policy_asrs[int(trajectories[1])],
+                                                                            ref_asrs[int(trajectories[1])],self.beta/self.spo_alpha_a)
+            
+        trajectories=pairs_comp[1].split(' ')
+        asr_losses2, asr_chosen_rewards2, asr_rejected_rewards2 = compute_loss(policy_asrs[int(trajectories[0])],
+                                                                            ref_asrs[int(trajectories[0])],
+                                                                            policy_asrs[int(trajectories[1])],
+                                                                            ref_asrs[int(trajectories[1])],self.beta/self.spo_alpha_a)
+        trajectories=pairs_comp[2].split(' ')
+        asr_losses3, asr_chosen_rewards3, asr_rejected_rewards3 = compute_loss(policy_asrs[int(trajectories[0])],
+                                                                            ref_asrs[int(trajectories[0])],
+                                                                            policy_asrs[int(trajectories[1])],
+                                                                            ref_asrs[int(trajectories[1])],self.beta*2/self.spo_alpha_a)    
+        asr_chosen_rewards=[asr_chosen_rewards1,asr_chosen_rewards2,asr_chosen_rewards3]   
+        asr_rejected_rewards=[asr_rejected_rewards1,asr_rejected_rewards2,asr_rejected_rewards3]
+        asr_losses=asr_losses1*al_w[0]+asr_losses2*al_w[1]+asr_losses3*al_w[2]
+        ls_list=[asr_losses1*al_w[0],asr_losses2*al_w[1],asr_losses3*al_w[2]]
+        return qs_losses, asr_losses, asr_chosen_rewards, qs_chosen_rewards, qs_rejected_rewards, asr_rejected_rewards,ls_list
+
+    
 
     @staticmethod
     def get_batch_logps(
@@ -859,7 +888,44 @@ class SDOTrainer(Trainer):
         Returns:
             A tensor of shape (batch_size,) containing the average/sum log probabilities of the given labels under the given logits.
         """
+        def split_qa_logps(per_token_logps,split_idxs,loss_mask,average_log_prob):
+            # split_idxs=[[i1,i2,...],[i1,i2,..]] B * # <start>
+            def get_regional_tensor(split_idxs,per_token_logps,loss_mask,start,end):
+                a=torch.zeros(per_token_logps.shape).to(per_token_logps.device)
+                start_pos=None
+                end_pos=None
+                if start!=0:
+                    start_pos=split_idxs[:,start]
+                if end!=-1:
+                    end_pos=split_idxs[:,end]
+                cols = torch.arange(per_token_logps.size(1)).unsqueeze(0).to(per_token_logps.device)
+                if start_pos is not None and end_pos is not None :
+                    mask = (cols >= start_pos.unsqueeze(1)) & (cols < end_pos.unsqueeze(1))
+                
+                elif end_pos is not None:
+                    mask = cols < end_pos.unsqueeze(1)
+                else:
+                    mask = cols >= start_pos.unsqueeze(1)
+                a[mask]=1
+                return per_token_logps*a,loss_mask*a
+            
+            ques_logps,ques_mask=get_regional_tensor(split_idxs,per_token_logps,loss_mask,0,4)
+            ans1_logps,ans1_mask=get_regional_tensor(split_idxs,per_token_logps,loss_mask,4,5)
+            ans2_logps,ans2_mask=get_regional_tensor(split_idxs,per_token_logps,loss_mask,6,-1)
+            # Sum or average the log probabilities based on the flag
+            if average_log_prob:
+                question_logps = (ques_logps.sum(dim=1) / ques_mask.sum(dim=1))
+                answer1_logps = (ans1_logps.sum(dim=1) / ans1_mask.sum(dim=1))
+                answer2_logps = (ans2_logps.sum(dim=1) / ans2_mask.sum(dim=1))
+            else:
+                question_logps = ques_logps.sum(dim=1)
+                answer1_logps = ans1_logps.sum(dim=1)
+                answer2_logps = ans2_logps.sum(dim=1)
+
+            return question_logps,answer1_logps,answer2_logps
+        
         assistant_idx = (labels == 151644).nonzero(as_tuple=False)
+        # assistant_idx: there will have 6 splitting points in each sequence, everything before the 3rd is first q, 3-4 first a, 4-5 second q, 5-6 second a
         if logits.shape[:-1] != labels.shape:
             raise ValueError("Logits (batch and sequence length dim) and labels must have the same shape.")
         if not is_encoder_decoder:
@@ -868,35 +934,11 @@ class SDOTrainer(Trainer):
         loss_mask = labels != label_pad_token_id
         # dummy token; we'll ignore the losses on these tokens later
         labels[labels == label_pad_token_id] = 0
-
         per_token_logps = torch.gather(logits.log_softmax(-1), dim=2, index=labels.unsqueeze(2)).squeeze(2)
-        cur_batch=0
-        split_idxs=[]
-        for i,idx in enumerate(assistant_idx):
-            if idx[0]!=cur_batch:
-                split_idxs.append(assistant_idx[i-1][1])
-                cur_batch=idx[0]
-            if i==len(assistant_idx)-1:
-                split_idxs.append(idx[1])
-
-        per_token_logps *= loss_mask
-
-        question_logps=[]
-        answer_logps=[]
-        for i,logps in enumerate(per_token_logps):
-            ques_logps=logps[:split_idxs[i]]
-            ques_mask=loss_mask[i][:split_idxs[i]]
-            ans_logps = logps[split_idxs[i]:]
-            ans_mask = loss_mask[i][split_idxs[i]:]
-            if average_log_prob:
-                question_logps.append((ques_logps.sum(-1) / ques_mask.sum(-1)).unsqueeze(0))
-                answer_logps.append((ans_logps.sum(-1) / ans_mask.sum(-1)).unsqueeze(0))
-            else:
-                question_logps.append((ques_logps.sum(-1)).unsqueeze(0))
-                answer_logps.append((ans_logps.sum(-1)).unsqueeze(0))
-        question_logps=torch.cat(question_logps,dim=0)
-        answer_logps = torch.cat(answer_logps,dim=0)
-        return question_logps, answer_logps
+        batch_size = per_token_logps.size(0)
+        split_idxs = assistant_idx[:, 1].view(batch_size, assistant_idx.size(0) // batch_size)
+        question_logps,answer1_logps,answer2_logps=split_qa_logps(per_token_logps,split_idxs,loss_mask,average_log_prob)
+        return question_logps, answer1_logps, answer2_logps
 
     def get_sft_loss(self, logits, labels):
         # Shift so that tokens < n predict n
@@ -910,31 +952,7 @@ class SDOTrainer(Trainer):
         shift_labels = shift_labels.to(shift_logits.device)
         loss = loss_fct(shift_logits, shift_labels)
         return loss
-    # def split_all(self, all_logits, all_labels, batch_ids):
-    #
-    #     # list of index of assistant id (77091) TODO update hard coding assistant id
-    #     answer_logits=[]
-    #     other_logits=[]
-    #     answer_labels=[]
-    #     other_labels=[]
-    #     first_exists=[]
-    #     for i, logits in enumerate(all_logits):
-    #         assidx = assistant_idx[i] # current assistant id index in input ids
-    #         cur_labels=all_labels[i]
-    #         if assidx[0] not in first_exists: # ignore the assistant in sampler qa,
-    #             answer_logits.append(logits[assidx[1]-1:].unsqueeze(0))
-    #             other_logits.append(logits[:assidx[1]-1].unsqueeze(0))
-    #             answer_labels.append(cur_labels[assidx[1] - 1:].unsqueeze(0))
-    #             other_labels.append(cur_labels[:assidx[1] - 1].unsqueeze(0))
-    #         else:
-    #             first_exists.append(assidx[0])
-    #         print("answer label shape", cur_labels.shape)
-    #     answer_labels = torch.cat(answer_labels, dim=0)
-    #     other_labels = torch.cat(other_labels,dim=0)
-    #     answer_logits = torch.cat(answer_logits, dim=0)
-    #     other_logits = torch.cat(other_logits, dim=0)
-    #     print(answer_labels.shape, other_labels.shape, answer_logits.shape,other_logits.shape)
-    #     return answer_logits, other_logits, answer_labels, other_labels
+   
     def concatenated_forward(self, model: nn.Module, batch: Dict[str, Union[List, torch.LongTensor]]) -> Tuple[torch.FloatTensor, torch.FloatTensor, torch.FloatTensor, torch.FloatTensor]:
         """Run the given model on the given batch of inputs, concatenating the chosen and rejected inputs together.
         concatenated inputs: system + sampler QA + chosen/rejected QA
@@ -945,73 +963,77 @@ class SDOTrainer(Trainer):
             Answers: chosen_logps, rejected_logps, chosen_logits, rejected_logits, chosen_labels, rejected_labels
         """
         # import pdb; pdb.set_trace()
-        concatenated_batch = self.concatenated_inputs(
-            batch,
-            is_encoder_decoder=self.is_encoder_decoder,
-            label_pad_token_id=self.label_pad_token_id,
-            padding_value=self.padding_value,
-            device=self.accelerator.device,
-        )
-        len_chosen = batch["chosen_labels"].shape[0]
+        # concatenated_batch = self.concatenated_inputs(
+        #     batch,
+        #     is_encoder_decoder=self.is_encoder_decoder,
+        #     label_pad_token_id=self.label_pad_token_id,
+        #     padding_value=self.padding_value,
+        #     device=self.accelerator.device,
+        # )
+        #len_chosen = batch["chosen_labels"].shape[0]
 
         # import pdb; pdb.set_trace()
-        all_logits, new_labels = model(
-            concatenated_batch["concatenated_input_ids"],
-            attention_mask=concatenated_batch["concatenated_attention_mask"],
-            labels=concatenated_batch["concatenated_labels"],
-            images=concatenated_batch["concatenated_images"],
-            image_sizes=concatenated_batch["image_sizes"],
-            modalities=concatenated_batch["modalities"],
+        # all_logits, new_labels = model(
+        #     concatenated_batch["concatenated_input_ids"],
+        #     attention_mask=concatenated_batch["concatenated_attention_mask"],
+        #     labels=concatenated_batch["concatenated_labels"],
+        #     images=concatenated_batch["concatenated_images"],
+        #     image_sizes=concatenated_batch["image_sizes"],
+        #     modalities=concatenated_batch["modalities"],
+        #     use_cache=False,
+        #     dpo_forward=True,
+        # )
+        chosen_logits, chosen_labels = model(
+            torch.cat([batch['sampler_input_ids'],batch['chosen_input_ids']],dim=-1),
+            attention_mask=torch.cat([batch['sampler_attention_mask'],batch['chosen_attention_mask']],dim=-1),
+            labels=torch.cat([batch['sampler_labels'],batch['chosen_labels']],dim=-1),
+            images=batch["images"],
+            image_sizes=batch["image_sizes"],
+            modalities=batch["modalities"],
             use_cache=False,
             dpo_forward=True,
         )
-        batch_ids = concatenated_batch["concatenated_input_ids"]
+        rejected_logits, rejected_labels = model(
+            torch.cat([batch['sampler_input_ids'],batch['rejected_input_ids']],dim=-1),
+            attention_mask=torch.cat([batch['sampler_attention_mask'],batch['rejected_attention_mask']],dim=-1),
+            labels=torch.cat([batch['sampler_labels'],batch['rejected_labels']],dim=-1),
+            images=batch["images"],
+            image_sizes=batch["image_sizes"],
+            modalities=batch["modalities"],
+            use_cache=False,
+            dpo_forward=True,
+        )
 
-
-        all_logits = all_logits.to(torch.float32)
-        question_logps, answer_logps = self.get_batch_logps(
-            all_logits,
-            new_labels,
+        chosen_logits = chosen_logits.to(torch.float32)
+        rejected_logits = rejected_logits.to(torch.float32)
+        chosen_qs_logps, chosen_asr1_logps, rejected_asr1_logps = self.get_batch_logps(
+            chosen_logits,
+            chosen_labels,
             average_log_prob=self.loss_type == "ipo",
             is_encoder_decoder=self.is_encoder_decoder,
             label_pad_token_id=self.label_pad_token_id,
         )
+        rejected_qs_logps, chosen_asr2_logps, rejected_asr2_logps = self.get_batch_logps(
+            chosen_logits,
+            chosen_labels,
+            average_log_prob=self.loss_type == "ipo",
+            is_encoder_decoder=self.is_encoder_decoder,
+            label_pad_token_id=self.label_pad_token_id,
+        )
+        # chosen_qs_logps = question_logps[:len_chosen]
+        # rejected_qs_logps = question_logps[len_chosen:]
 
-        chosen_qs_logps = question_logps[:len_chosen]
-        rejected_qs_logps = question_logps[len_chosen:]
+        # chosen_asr1_logps = answer1_logps[:len_chosen] # 1st leaf node
+        # chosen_asr2_logps = answer2_logps[:len_chosen] # 2nd
+        # rejected_asr1_logps = answer1_logps[len_chosen:] # 3rd
+        # rejected_asr2_logps = answer2_logps[len_chosen:] # 4th
 
-        chosen_asr_logps = answer_logps[:len_chosen]
-        rejected_asr_logps = answer_logps[len_chosen:]
+        # chosen_logits = all_logits[:len_chosen]
+        # rejected_logits = all_logits[len_chosen:]
+        # chosen_labels = new_labels[:len_chosen]
+        # rejected_labels = new_labels[len_chosen:]
 
-        chosen_logits = all_logits[:len_chosen]
-        rejected_logits = all_logits[len_chosen:]
-        chosen_labels = new_labels[:len_chosen]
-        rejected_labels = new_labels[len_chosen:]
-        # question_logps = self.get_batch_logps(
-        #     other_logits,
-        #     other_labels,
-        #     average_log_prob=self.loss_type == "ipo",
-        #     is_encoder_decoder=self.is_encoder_decoder,
-        #     label_pad_token_id=self.label_pad_token_id,
-        # )
-
-        # chosen_logps = answer_logps[:len_chosen]
-        # rejected_logps = answer_logps[len_chosen:]
-        # chosen_logits = answer_logits[:len_chosen]
-        # rejected_logits = answer_logits[len_chosen:]
-        # chosen_labels = answer_labels[:len_chosen]
-        # rejected_labels = answer_labels[len_chosen:]
-        # chosen_prompt_logps=question_logps[:len_chosen]
-        # rejected_prompt_logps=question_logps[len_chosen:]
-        # chosen_prompt_logits=other_logits[:len_chosen]
-        # rejected_prompt_logits=other_logits[len_chosen:]
-        # chosen_prompt_labels=other_labels[:len_chosen]
-        # rejected_prompt_labels=other_labels[len_chosen:]
-        # print("chosen logits: ", chosen_logits, "chosen label: ",chosen_labels)
-        # print("reject logits: ", rejected_logits, "reject labels: ", rejected_labels)
-        # print("chosen prompt logits: ", chosen_prompt_logits, "chosen prompt label: ", chosen_prompt_labels)
-        # print("reject prompt logits: ", rejected_prompt_logits, "reject prompt labels: ", rejected_prompt_labels)
-        return (chosen_qs_logps, rejected_qs_logps, chosen_asr_logps, rejected_asr_logps, chosen_logits, rejected_logits, chosen_labels, rejected_labels)
+        return (chosen_qs_logps, rejected_qs_logps, chosen_asr1_logps, chosen_asr2_logps,rejected_asr1_logps, rejected_asr2_logps, chosen_logits, rejected_logits, chosen_labels, rejected_labels)
 
     def get_batch_loss_metrics(
         self,
@@ -1019,20 +1041,22 @@ class SDOTrainer(Trainer):
         batch: Dict[str, Union[List, torch.LongTensor]],
         train_eval: Literal["train", "eval"] = "train",
     ):
-        """Compute the SDO loss and other metrics for the given batch of inputs for train or test.
+        """Compute the SPO loss and other metrics for the given batch of inputs for train or test.
         CHANGE: 1. add sft loss
         2. all gather metrics
         """
         metrics = {}
-        
+
         (
-            policy_chosen_qs_logps, 
-            policy_rejected_qs_logps, 
-            policy_chosen_asr_logps, 
-            policy_rejected_asr_logps, 
-            policy_chosen_logits, 
-            policy_rejected_logits, 
-            chosen_labels, 
+            policy_chosen_qs_logps,
+            policy_rejected_qs_logps,
+            policy_chosen_asr1_logps,
+            policy_chosen_asr2_logps,
+            policy_rejected_asr1_logps,
+            policy_rejected_asr2_logps,
+            policy_chosen_logits,
+            policy_rejected_logits,
+            chosen_labels,
             rejected_labels
         ) = self.concatenated_forward(model, batch)
 
@@ -1045,47 +1069,48 @@ class SDOTrainer(Trainer):
                 if self.ref_model is None:
                     with self.null_ref_context():
                         (
-                            reference_chosen_qs_logps, 
-                            reference_rejected_qs_logps, 
-                            reference_chosen_asr_logps, 
-                            reference_rejected_asr_logps,
+                            reference_chosen_qs_logps,
+                            reference_rejected_qs_logps,
+                            reference_chosen_asr1_logps,
+                            reference_chosen_asr2_logps,
+                            reference_rejected_asr1_logps,
+                            reference_rejected_asr2_logps,
                         ) = self.concatenated_forward(
                             self.model, batch
-                        )[:4]
+                        )[:6]
                 else:
                     (
-                        reference_chosen_qs_logps, 
-                        reference_rejected_qs_logps, 
-                        reference_chosen_asr_logps, 
-                        reference_rejected_asr_logps,
+                        reference_chosen_qs_logps,
+                        reference_rejected_qs_logps,
+                        reference_chosen_asr1_logps,
+                        reference_chosen_asr2_logps,
+                        reference_rejected_asr1_logps,
+                        reference_rejected_asr2_logps,
                     ) = self.concatenated_forward(
                         self.ref_model, batch
-                    )[:4]
+                    )[:6]
 
-        qs_losses, asr_losses, asr_chosen_rewards, qs_chosen_rewards, qs_rejected_rewards, asr_rejected_rewards = self.sdo_loss(
-            policy_chosen_qs_logps, 
-            policy_rejected_qs_logps, 
-            policy_chosen_asr_logps, 
-            policy_rejected_asr_logps,
-            reference_chosen_qs_logps, 
-            reference_rejected_qs_logps, 
-            reference_chosen_asr_logps, 
-            reference_rejected_asr_logps,
+        qs_losses, asr_losses, asr_chosen_rewards, qs_chosen_rewards, qs_rejected_rewards, asr_rejected_rewards, asr_los_list = self.spo_loss(
+            policy_chosen_qs_logps,
+            policy_rejected_qs_logps,
+            policy_chosen_asr1_logps,
+            policy_chosen_asr2_logps,
+            policy_rejected_asr1_logps,
+            policy_rejected_asr2_logps,
+            reference_chosen_qs_logps,
+            reference_rejected_qs_logps,
+            reference_chosen_asr1_logps,
+            reference_chosen_asr2_logps,
+            reference_rejected_asr1_logps,
+            reference_rejected_asr2_logps,
         )
-        qs_losses = qs_losses.mean()
-        sdo_qs_losses = qs_losses * self.sdo_alpha_q
-        asr_losses = asr_losses.mean()
-        sdo_asr_losses = asr_losses * self.sdo_alpha_a
-        unscaled_sft_loss = self.get_sft_loss(policy_chosen_logits, chosen_labels)
-        sft_loss = unscaled_sft_loss * self.gamma
+        
+        losses = qs_losses.mean()+asr_losses.mean()
 
-        # print(sft_loss.shape, dpo_losses.shape)
-        losses = sdo_qs_losses+sdo_asr_losses + sft_loss
-        # losses = sft_loss # sft only
-        # losses = dpo_losses # dpo only
         reward_accuracies_qs = (qs_chosen_rewards > qs_rejected_rewards).float()
-        reward_accuracies_asr = (asr_chosen_rewards > asr_rejected_rewards).float()
-
+        reward_accuracies_asr1 = (asr_chosen_rewards[0] > asr_rejected_rewards[0]).float()
+        reward_accuracies_asr2 = (asr_chosen_rewards[1] > asr_rejected_rewards[1]).float()
+        reward_accuracies_asr3 = (asr_chosen_rewards[2] > asr_rejected_rewards[2]).float()
         def all_gather_tensor(tensor):
             if torch.distributed.is_available() and torch.distributed.is_initialized():
                 tensor = tensor.detach()
@@ -1099,41 +1124,32 @@ class SDOTrainer(Trainer):
         # gather chosen_rewards across devices
         qs_chosen_rewards = all_gather_tensor(qs_chosen_rewards)
         qs_rejected_rewards = all_gather_tensor(qs_rejected_rewards)
-        asr_chosen_rewards = all_gather_tensor(asr_chosen_rewards)
-        asr_rejected_rewards = all_gather_tensor(asr_rejected_rewards)
+        asr_chosen_rewards1 = all_gather_tensor(asr_chosen_rewards[0])
+        asr_rejected_rewards1 = all_gather_tensor(asr_rejected_rewards[0])
+        asr_chosen_rewards2 = all_gather_tensor(asr_chosen_rewards[1])
+        asr_rejected_rewards2 = all_gather_tensor(asr_rejected_rewards[1])
+        asr_chosen_rewards3 = all_gather_tensor(asr_chosen_rewards[2])
+        asr_rejected_rewards3 = all_gather_tensor(asr_rejected_rewards[2])
         reward_accuracies_qs = all_gather_tensor(reward_accuracies_qs)
-        reward_accuracies_asr = all_gather_tensor(reward_accuracies_asr)
-        #policy_chosen_logps = all_gather_tensor(policy_chosen_logps)
-        #policy_rejected_logps = all_gather_tensor(policy_rejected_logps)
-        #reference_chosen_logps = all_gather_tensor(reference_chosen_logps)
-        #reference_rejected_logps = all_gather_tensor(reference_rejected_logps)
-
+        reward_accuracies_asr1 = all_gather_tensor(reward_accuracies_asr1)
+        reward_accuracies_asr2 = all_gather_tensor(reward_accuracies_asr2)
+        reward_accuracies_asr3 = all_gather_tensor(reward_accuracies_asr3)
         prefix = "eval_" if train_eval == "eval" else ""
-        metrics[f"{prefix}losses/sdo"] = sdo_qs_losses.cpu()+sdo_asr_losses.cpu()
-        metrics[f"{prefix}losses/sft"] = unscaled_sft_loss.cpu()
-        metrics[f"{prefix}losses/total"] = losses.cpu()
+        metrics[f"{prefix}losses/question"] = qs_losses.cpu()
+        metrics[f"{prefix}losses/a1>a2"] = asr_los_list[0].cpu()
+        metrics[f"{prefix}losses/a3>a4"] = asr_los_list[1].cpu()
+        metrics[f"{prefix}losses/a1>a4"] = asr_los_list[2].cpu()
         metrics[f"{prefix}rewards-question/chosen"] = qs_chosen_rewards.mean().cpu()
         metrics[f"{prefix}rewards-question/rejected"] = qs_rejected_rewards.mean().cpu()
         metrics[f"{prefix}rewards-question/accuracies"] = reward_accuracies_qs.mean().cpu()
         metrics[f"{prefix}rewards-question/margins"] = (qs_chosen_rewards - qs_rejected_rewards).mean().cpu()
-        metrics[f"{prefix}rewards-answer/chosen"] = asr_chosen_rewards.mean().cpu()
-        metrics[f"{prefix}rewards-answer/rejected"] = asr_rejected_rewards.mean().cpu()
-        metrics[f"{prefix}rewards-answer/accuracies"] = reward_accuracies_asr.mean().cpu()
-        metrics[f"{prefix}rewards-answer/margins"] = (asr_chosen_rewards - asr_rejected_rewards).mean().cpu()
-        # policy logps
-        #metrics[f"{prefix}logps/rejected"] = policy_rejected_logps.detach().mean().cpu()
-        #metrics[f"{prefix}logps/chosen"] = policy_chosen_logps.detach().mean().cpu()
-        # policy logits (exclude image tokens)
-        # metrics[f"{prefix}logits/rejected"] =policy_rejected_logits
-        # metrics[f"{prefix}logits/chosen"] = policy_chosen_logits
-        # reference logps
-        #metrics[f"{prefix}ref_logps/rejected"] = reference_rejected_logps.mean().cpu()
-        #metrics[f"{prefix}ref_logps/chosen"] = reference_chosen_logps.mean().cpu()
-
-        # metrics all pick .4 digits
-        # for k in metrics:
-        #     metrics[k] = round(metrics[k].item(), 4)
-
+        metrics[f"{prefix}rewards-answer/a1>a2 acc"] = reward_accuracies_asr1.mean().cpu()
+        metrics[f"{prefix}rewards-answer/a3>a4 acc"] = reward_accuracies_asr2.mean().cpu()
+        metrics[f"{prefix}rewards-answer/a1>a4 acc"] = reward_accuracies_asr3.mean().cpu()
+        metrics[f"{prefix}rewards-answer/a1>a2 margins"] = (asr_chosen_rewards1 - asr_rejected_rewards1).mean().cpu()
+        metrics[f"{prefix}rewards-answer/a3>a4 margins"] = (asr_chosen_rewards2 - asr_rejected_rewards2).mean().cpu()
+        metrics[f"{prefix}rewards-answer/a1>a4 margins"] = (asr_chosen_rewards3 - asr_rejected_rewards3).mean().cpu()
+        
         return losses, metrics
 
     def compute_loss(
@@ -1142,7 +1158,7 @@ class SDOTrainer(Trainer):
         inputs: Dict[str, Union[torch.Tensor, Any]],
         return_outputs=False,
     ) -> Union[torch.Tensor, Tuple[torch.Tensor, Dict[str, torch.Tensor]]]:
-        if not self.use_sdo_data_collator:
+        if not self.use_spo_data_collator:
             warnings.warn(
                 "compute_loss is only implemented for DPODataCollatorWithPadding, and you passed a datacollator that is different than "
                 "DPODataCollatorWithPadding - you might see unexpected behavior. Alternatively, you can implement your own prediction_step method if you are using a custom data collator"
@@ -1213,7 +1229,7 @@ class SDOTrainer(Trainer):
         prediction_loss_only: bool,
         ignore_keys: Optional[List[str]] = None,
     ):
-        if not self.use_sdo_data_collator:
+        if not self.use_spo_data_collator:
             warnings.warn(
                 "prediction_step is only implemented for DPODataCollatorWithPadding, and you passed a datacollator that is different than "
                 "DPODataCollatorWithPadding - you might see unexpected behavior. Alternatively, you can implement your own prediction_step method if you are using a custom data collator"
@@ -1309,7 +1325,7 @@ class SDOTrainer(Trainer):
         del self._stored_metrics[train_eval]
         return super().log(logs)
     def save_my_lora_ckpt(self, output_dir, training_args, model):
-        self.state.save_to_json(os.path.join(output_dir, 'trainer_state.json'))
+        #self.state.save_to_json(os.path.join(output_dir, 'trainer_state.json'))
         state_dict = get_peft_state_maybe_zero_3(model.named_parameters(), training_args.lora_bias)
         non_lora_state_dict = get_peft_state_non_lora_maybe_zero_3(model.named_parameters())
         if training_args.local_rank == 0 or training_args.local_rank == -1:
@@ -1320,8 +1336,6 @@ class SDOTrainer(Trainer):
             model.save_pretrained(output_dir, state_dict=state_dict)
             torch.save(non_lora_state_dict, os.path.join(output_dir, "non_lora_trainables.bin"))
             # if training_args.vit_lora_enable:
-            v_tower_lora = get_peft_state_maybe_zero_3(self.vision_tower.named_parameters(), training_args.lora_bias)
-            self.vision_tower.save_pretrained(os.path.join(output_dir, 'Vit-lora'), state_dict=v_tower_lora)
     @wraps(Trainer.push_to_hub)
     def push_to_hub(self, commit_message: Optional[str] = "End of training", blocking: bool = True, **kwargs) -> str:
         """

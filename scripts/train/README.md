@@ -1,10 +1,16 @@
 # About Training Scripts
 
-We first release the basic training scripts for LLaVA-NeXT. It's based on previous LLaVA's training scripts and researchers familiar with LLaVA will find it easy to use.
+## We follow the basic training scripts from LLaVA-NeXT. It's based on previous LLaVA's training scripts and researchers familiar with LLaVA will find it easy to use.
 
-We will gradually release the more detailed training scripts for our LLaVA OneVision models including the mid stage, single-image final stage and one-vision final stage.
-> They are basically the same as the basic training scripts, but with some modifications, such as the data yaml.
+1. We provide the training scripts for our stage-1 training: ==Reasoning and learning to question==.
+> The main change from LLaVA-NeXT is we implemented a data processing function called ==preprocess_qwen_sq==, which is used to unmask question tokens during training.
+> To be notice, we are setting `--version qwen_sq` to make sure we are using self-questioning data process.
 
-- `finetune_clip.sh`: This could be seen as the first image version LLaVA-NeXT (2024-01) training script, with `anyres` strategy and maximum 2x2 image grids.
-- `finetune_siglip.sh`: Same but with `siglip` encoder, each grid becomes 729 tokens.
-- `finetune_onevision.sh`: This is our latest training script, with `anyres_max_9` strategy and image grids weaving from 1x1 to 6x6, at most to 2304x2304 resolution. Inside the script, we also incorporate the multi-image and video data into training loop. the detail token strategy could be found in our paper.
+- `finetune_ov_sq.sh`: This could be seen as the first-stage training script.
+
+
+2. We provide the training scripts for our stage-2 training: ==Structured preference optimization==.
+> The main change here is we implemented a new trainer called ==SPO_trainer==, you may find it in `trl/trainer/spo_trainer.py`
+> The train_spo.py implements a new data process to support preferene data.
+
+- `spo_7b.sh`: This could be seen as the second-stage training script.
