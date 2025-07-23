@@ -41,13 +41,13 @@ Annotation data: [stage-1 SFT data](https://huggingface.co/datasets/ZachSun/vide
 
 ### Stage-1: self-questioning and reasoning
 
-- Checkpoint[![SFT-0.5B](https://img.shields.io/badge/llava_onevision-checkpoints-blue)](https://huggingface.co/ZachSun/sqllava-qwen-0.5b-interleave)
-- Checkpoint[![SFT-7B](https://img.shields.io/badge/llava_onevision-checkpoints-blue)](https://huggingface.co/ZachSun/sqllava-qwen-7b-interleave)
+- Checkpoint[SFT-0.5B](https://huggingface.co/ZachSun/sqllava-qwen-0.5b-interleave)
+- Checkpoint[SFT-7B](https://huggingface.co/ZachSun/sqllava-qwen-7b-interleave)
 
 ### Stage-2: Structured preference optimization
 
-- Checkpoint[![SPO-0.5B](https://img.shields.io/badge/llava_onevision-checkpoints-blue)](https://huggingface.co/ZachSun/SPO-LLaVA-OV-0.5B)
-- Checkpoint[![SPO-7B](https://img.shields.io/badge/llava_onevision-checkpoints-blue)](https://huggingface.co/ZachSun/SPO-LLaVA-OV-7B)
+- Checkpoint[SPO-0.5B](https://huggingface.co/ZachSun/SPO-LLaVA-OV-0.5B)
+- Checkpoint[SPO-7B](https://huggingface.co/ZachSun/SPO-LLaVA-OV-7B)
 
 ## Citation
 
