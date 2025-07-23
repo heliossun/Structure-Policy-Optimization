@@ -31,7 +31,8 @@ pip install packaging &&  pip install ninja && pip install flash-attn --no-build
 
 ## Training Data
 
-### Video data: [ShareGPTVideo](https://huggingface.co/datasets/ShareGPTVideo/train_video_and_instruction)
+### Video data: 
+- [ShareGPTVideo](https://huggingface.co/datasets/ShareGPTVideo/train_video_and_instruction)
 
 ### Image data: 
 - [[OneVision data preparation script]](https://github.com/heliossun/Structure-Policy-Optimization/blob/main/scripts/prepare_trainData/getData.py) 
