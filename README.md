@@ -1,13 +1,18 @@
 ## Release Notes
+- [2025/07/23] 🔥 Our checkpoints were released!
+- [2025/07/23] 🔥 We release our preference data!
 - [2025/07/22] 🔥 Our training code was released!
 - [2025/06/25] 🔥 Our paper has been accepted by ICCV 2025
 
 
 
 # SPO
-<!-- [![SPO-llava-onevision checkpoints](https://img.shields.io/badge/llava_onevision-checkpoints-blue)](https://huggingface.co/collections/lmms-lab/llava-onevision-66a259c3526e15166d6bba37) -->
+<p align="center" width="100%">
+<img src="https://github.com/heliossun/Structure-Policy-Optimization/tree/main/docs/coverimage.jpg"  width="80%" height="80%">
+</p>
 
-
+We introduce structured policy optimization (SPO) -- a novel preference optimization method that simultaneously aligns preference instructions, responses, and dialogue interactions to improve multi-modal understanding and reasoning capabilities. The efficacy of SPO is attributed to one key design:
+treating the questioning and answering as a sequential action and binding them through a trajectory reward. This reward formulation better aligns with real-world dialogue studies and eliminates the need for fixed instructions. 
 
 
 
@@ -23,10 +28,25 @@ pip install -e ".[train]"
 pip install packaging &&  pip install ninja && pip install flash-attn --no-build-isolation --no-cache-dir # if flash-attention install error
 ```
 
+## Training Data
+
+Video data: [ShareGPTVideo](https://huggingface.co/datasets/ShareGPTVideo/train_video_and_instruction)
+Image data: [[OneVision data preparation script]](https://github.com/heliossun/Structure-Policy-Optimization/blob/main/scripts/prepare_trainData/getData.py) [m4 Instruct data](https://huggingface.co/datasets/lmms-lab/M4-Instruct-Data)
+Annotation data: [stage-1 SFT data](https://huggingface.co/datasets/ZachSun/video-lvlm-data/blob/main/ours_interleave_iv.json) [stage-2 SPO data](https://huggingface.co/datasets/ZachSun/video-lvlm-data/blob/main/merge_prefQA_7B_14500.json)
 
 ## Training
 
 [[Training Doc]](https://github.com/heliossun/Structure-Policy-Optimization/blob/main/scripts/train/README.md): Training guidance.
+
+### Stage-1: self-questioning and reasoning
+
+- Checkpoint[![SFT-0.5B](https://img.shields.io/badge/llava_onevision-checkpoints-blue)](https://huggingface.co/ZachSun/sqllava-qwen-0.5b-interleave)
+- Checkpoint[![SFT-7B](https://img.shields.io/badge/llava_onevision-checkpoints-blue)](https://huggingface.co/ZachSun/sqllava-qwen-7b-interleave)
+
+### Stage-2: Structured preference optimization
+
+- Checkpoint[![SPO-0.5B](https://img.shields.io/badge/llava_onevision-checkpoints-blue)](https://huggingface.co/ZachSun/SPO-LLaVA-OV-0.5B)
+- Checkpoint[![SPO-7B](https://img.shields.io/badge/llava_onevision-checkpoints-blue)](https://huggingface.co/ZachSun/SPO-LLaVA-OV-7B)
 
 ## Citation
 
