@@ -41,19 +41,24 @@ Annotation data: [stage-1 SFT data](https://huggingface.co/datasets/ZachSun/vide
 
 ### Stage-1: self-questioning and reasoning
 
-- Checkpoint[SFT-0.5B](https://huggingface.co/ZachSun/sqllava-qwen-0.5b-interleave)
-- Checkpoint[SFT-7B](https://huggingface.co/ZachSun/sqllava-qwen-7b-interleave)
+- Checkpoint [SFT-0.5B](https://huggingface.co/ZachSun/sqllava-qwen-0.5b-interleave)
+- Checkpoint [SFT-7B](https://huggingface.co/ZachSun/sqllava-qwen-7b-interleave)
 
 ### Stage-2: Structured preference optimization
 
-- Checkpoint[SPO-0.5B](https://huggingface.co/ZachSun/SPO-LLaVA-OV-0.5B)
-- Checkpoint[SPO-7B](https://huggingface.co/ZachSun/SPO-LLaVA-OV-7B)
+- Checkpoint [SPO-0.5B](https://huggingface.co/ZachSun/SPO-LLaVA-OV-0.5B)
+- Checkpoint [SPO-7B](https://huggingface.co/ZachSun/SPO-LLaVA-OV-7B)
 
 ## Citation
 
 If you find it useful for your research and applications, please cite related papers/blogs using this BibTeX:
-```bibtex
-
+```
+@InProceedings{guohao_sun_ICCV,
+    author    = {Sun, Guohao and Qin, Can and Yihao, Feng and Chen, Zeyuan and Xu, Ran and Dianat, Sohail and Rabbani, Majid and Rao, Raghuveer and Tao, Zhiqiang},
+    title     = {Structured Policy Optimization: Enhance Large Vision-Language Model via Self-Referenced Dialogue},
+    booktitle = {Proceedings of the IEEE/CVF International Conference on Computer Vision (ICCV)},
+    year      = {2025},
+}
 ```
 
 ## Acknowledgement
