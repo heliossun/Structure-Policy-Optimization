@@ -7,8 +7,9 @@
 
 
 # SPO
-<p align="center" width="100%">
-<img src="https://github.com/heliossun/Structure-Policy-Optimization/tree/main/docs/coverimage.jpg"  width="80%" height="80%">
+
+<p align="center">
+  <img src="./docs/coverimage.jpg" width="500px"> <br>
 </p>
 
 We introduce structured policy optimization (SPO) -- a novel preference optimization method that simultaneously aligns preference instructions, responses, and dialogue interactions to improve multi-modal understanding and reasoning capabilities. The efficacy of SPO is attributed to one key design:
