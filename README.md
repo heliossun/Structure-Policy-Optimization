@@ -49,10 +49,10 @@ pip install packaging &&  pip install ninja && pip install flash-attn --no-build
 - Checkpoint [SFT-0.5B](https://huggingface.co/ZachSun/sqllava-qwen-0.5b-interleave)
 - Checkpoint [SFT-7B](https://huggingface.co/ZachSun/sqllava-qwen-7b-interleave)
 
-### Stage-2: Structured preference optimization
+<!-- ### Stage-2: Structured preference optimization
 
 - Checkpoint [SPO-0.5B](https://huggingface.co/ZachSun/SPO-LLaVA-OV-0.5B)
-- Checkpoint [SPO-7B](https://huggingface.co/ZachSun/SPO-LLaVA-OV-7B)
+- Checkpoint [SPO-7B](https://huggingface.co/ZachSun/SPO-LLaVA-OV-7B) -->
 
 ## Citation
 
