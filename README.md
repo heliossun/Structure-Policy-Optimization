@@ -1,5 +1,5 @@
 ## Release Notes
-- [2025/07/23] 🔥 Our checkpoints were released!
+- [2025/07/23] 🔥 Our stage-1 checkpoints were released!
 - [2025/07/23] 🔥 We release our preference data!
 - [2025/07/22] 🔥 Our training code was released!
 - [2025/06/25] 🔥 Our paper has been accepted by ICCV 2025
@@ -50,10 +50,7 @@ pip install packaging &&  pip install ninja && pip install flash-attn --no-build
 - Checkpoint [SFT-0.5B](https://huggingface.co/ZachSun/sqllava-qwen-0.5b-interleave)
 - Checkpoint [SFT-7B](https://huggingface.co/ZachSun/sqllava-qwen-7b-interleave)
 
-<!-- ### Stage-2: Structured preference optimization
 
-- Checkpoint [SPO-0.5B](https://huggingface.co/ZachSun/SPO-LLaVA-OV-0.5B)
-- Checkpoint [SPO-7B](https://huggingface.co/ZachSun/SPO-LLaVA-OV-7B) -->
 
 ## Citation
 
