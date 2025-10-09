@@ -34,8 +34,9 @@ pip install packaging &&  pip install ninja && pip install flash-attn --no-build
 - [ShareGPTVideo](https://huggingface.co/datasets/ShareGPTVideo/train_video_and_instruction)
 
 ### Image data: 
-- [[OneVision data preparation script]](https://github.com/heliossun/Structure-Policy-Optimization/blob/main/scripts/prepare_trainData/getData.py) 
-- [m4 Instruct data](https://huggingface.co/datasets/lmms-lab/M4-Instruct-Data)
+- [m4 Instruct data](https://huggingface.co/datasets/lmms-lab/M4-Instruct-Data) download and unzip into folder "m4-instruct"
+- [[OneVision data preparation script]](https://github.com/heliossun/Structure-Policy-Optimization/blob/main/scripts/prepare_trainData/getData.py) after download, put the folder "onevision" under m4-instruct
+
 
 ### Annotation data: 
 - [stage-1 SFT data](https://huggingface.co/datasets/ZachSun/video-lvlm-data/blob/main/ours_interleave_iv.json) 
