@@ -35,7 +35,7 @@ pip install packaging &&  pip install ninja && pip install flash-attn --no-build
 
 ### Image data: 
 - [m4 Instruct data](https://huggingface.co/datasets/lmms-lab/M4-Instruct-Data) download and unzip into folder "m4-instruct"
-- [[OneVision data preparation script]](https://github.com/heliossun/Structure-Policy-Optimization/blob/main/scripts/prepare_trainData/getData.py) after download, put the folder "onevision" under m4-instruct
+- [[OneVision data preparation script]](https://github.com/heliossun/Structure-Policy-Optimization/blob/main/scripts/prepare_trainData/getData.py) after download, save the images in folder "ovimage" under m4-instruct
 
 
 ### Annotation data: 
