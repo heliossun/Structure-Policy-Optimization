@@ -1,5 +1,4 @@
 ## Release Notes 
-- [2025/07/23] 🔥 We release our preference data!
 - [2025/07/22] 🔥 Our training code is under construction, stay tuned
 - [2025/06/25] 🔥 Our paper has been accepted by ICCV 2025
 
@@ -40,7 +39,6 @@ pip install packaging &&  pip install ninja && pip install flash-attn --no-build
 
 ### Annotation data: 
 - [stage-1 SFT data](https://huggingface.co/datasets/ZachSun/video-lvlm-data/blob/main/ours_interleave_iv.json) 
-- [stage-2 SPO data](https://huggingface.co/datasets/ZachSun/video-lvlm-data/blob/main/merge_prefQA_7B_14500.json)
 
 
 
